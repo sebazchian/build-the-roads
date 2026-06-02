@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS pledges (
   -- proof of intent: signed nostr event (NIP-07 signEvent output)
   sig_event_id  TEXT,                        -- signed event id
   sig           TEXT,                        -- schnorr signature
+  sig_event_json TEXT,                       -- full JSON event for server-side verifyEvent
+  sig_verified  INTEGER NOT NULL DEFAULT 0,  -- 1 = server verified event id+sig
   status        TEXT NOT NULL DEFAULT 'pledged', -- pledged | paid | reneged | refunded | expired
   paid_at       INTEGER,
   payment_preimage TEXT,                     -- WebLN sendPayment proof

@@ -31,10 +31,13 @@ export async function getDisplayName() {
 export async function signAction(content, tags = []) {
   const event = { kind: 1, created_at: Math.floor(Date.now() / 1000), tags, content };
   if (window.nostr?.signEvent) {
-    try { const s = await window.nostr.signEvent(event); return { sig_event_id: s.id, sig: s.sig }; }
-    catch (e) { console.warn('signEvent denied/failed', e); return {}; }
+    try {
+      const s = await window.nostr.signEvent(event);
+      // Return full event so server can verifyEvent(id, pubkey, created_at, kind, tags, content, sig)
+      return { sig_event: { id: s.id, pubkey: s.pubkey, created_at: s.created_at, kind: s.kind, tags: s.tags, content: s.content, sig: s.sig } };
+    } catch (e) { console.warn('signEvent denied/failed', e); return {}; }
   }
-  return {}; // dev: unsigned
+  return {}; // dev: unsigned (server will warn and accept in dev)
 }
 
 // --- Payments ---

@@ -23,6 +23,43 @@ Chronological decision + progress log. Newest at bottom.
 - Worker score = completed_claims / total_claims, minus flags for bad/fake proof.
 - Both displayed as % + simple badge. New users start at neutral (e.g., "New").
 
+## 2026-06-02 ~12:22 UTC — Security audit + UX humanization
+
+**AUDIT FINDINGS & FIXES:**
+1. 🔴 Nostr sig enforcement: pledge/claim now hard-rejects unsigned requests in production (`NODE_ENV=production`), gives clear 401. Dev mode warns to console but accepts for local testing.
+2. 🔴 CSP headers + X-Content-Type-Options + Referrer-Policy added on every response.
+3. 🔴 SPA fallback hardened — no longer falls back for `/api/*` or non-html Accept headers.
+4. 🔴 Image upload magic-number validation (PNG/JPEG only), 8MB limit.
+5. 🟡 Upload file-size cap (10MB stat check before serving).
+6. 🟡 N+1 trust computation fixed — `listBounties` now batch-preloads trust cache instead of `computeTrust` per pledge per bounty.
+
+**UI/UX HUMANIZATION — complete redesign:**
+- Moved from dark-mode crypto-template → warm, earthy palette (cream, clay, sand, moss, paper).
+- Serif headings (Georgia) for warmth; human copy everywhere (not corporate/AI filler).
+- Removed all "performance helpful" language — no "I'd be happy to", no motivational excess.
+- Copy reads like a real person wrote it: "Your neighbour needs something done. You need a few sats." / "honour it and your trust score grows" / "now watch the sats roll in".
+- Improved hierarchy: clear section labels, softer shadows, refined borders.
+- Detail page now groups actions by state with context: "Show them what you did" for workers, " honour it" for pledgers.
+- Mobile-first: tap targets enlarged, touch-friendly, sticky header with blur.
+- Leaderboard: friendlier empty states ("Nobody's finished a job yet. Could be you.")
+- Trust badges colour-coded with semantic dots (not abstract shapes).
+- Status words translated to human language: "Waiting on payments" instead of "proof_submitted".
+
+**NOTED (not fixed yet):**
+- No EXIF stripping (images served raw). Phase-2: add EXIF strip on upload.
+- Worker invoice stored in DB (no ZEC for now). Phase-2: consider ecash integration via `window.fedi`.
+- No real Nostr relay publishing (signed events stored but not gossiped). Phase-2: publish to Nostr for discoverability.
+
+## 2026-06-02 ~12:22 UTC — Security audit + UI humanization
+
+**AUDIT FINDINGS:**
+- 🔴 HIGH: Unsigned pledges/claims accepted in production (`sig_event` optional; server logs warning but accepts). Fix → make required when NODE_ENV=production.
+- 🔴 HIGH: N+1 queries in `listBounties` → each bounty calls `getBounty` → `computeTrust` per pledge. O(n×m). Fix → request-level trust cache.
+- 🟡 MEDIUM: No image content validation on proof upload (any base64 accepted). Fix → magic-number check PNG/JPEG.
+- 🟡 MEDIUM: No CSP headers. Fix → add Content-Security-Policy.
+- 🟢 LOW: No EXIF stripping, CORS `*` on writes, SPA fallback for API paths.
+**PRIVACY:** Minimal PII (only optional display name + pubkey). No tracking. No external scripts. Data is public-by-design.
+
 ## 2026-06-02 ~06:00 UTC — MVP built & tested
 
 - Wrote SCHEMA.md, schema.sql (users/bounties/pledges/flags).

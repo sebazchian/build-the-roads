@@ -9,9 +9,11 @@ import { fileURLToPath } from 'url';
 import { dirname, join, extname, normalize } from 'path';
 import { randomUUID } from 'crypto';
 import * as db from './lib/db.js';
+import { verifyNostrEvent } from './lib/nostr-verify.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT) || 3005;
+const isProd = process.env.NODE_ENV === 'production';
 const PUBLIC_DIR = join(__dirname, 'public');
 const UPLOAD_DIR = join(__dirname, 'uploads');
 
@@ -44,23 +46,23 @@ async function readJson(req) {
   return JSON.parse(buf.toString('utf8'));
 }
 
-async function serveStatic(res, urlPath) {
+async function serveStatic(res, urlPath, req) {
   let rel = urlPath === '/' ? '/index.html' : urlPath;
   rel = normalize(rel).replace(/^(\.\.[/\\])+/, '');
   const file = join(PUBLIC_DIR, rel);
   if (!file.startsWith(PUBLIC_DIR)) return send(res, 403, { error: 'forbidden' });
-  try {
-    const data = await readFile(file);
-    res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' });
-    res.end(data);
-  } catch {
-    // SPA fallback
-    try {
-      const data = await readFile(join(PUBLIC_DIR, 'index.html'));
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(data);
-    } catch { send(res, 404, { error: 'not found' }); }
+  const isApiLike = urlPath.startsWith('/api/');
+  const accept = req.headers.accept || '';
+
+  let data;
+  try { data = await readFile(file); } catch {
+    if (isApiLike) return send(res, 404, { error: 'not found' });
+    if (!accept.includes('text/html')) return send(res, 404, { error: 'not found' });
+    try { data = await readFile(join(PUBLIC_DIR, 'index.html')); }
+    catch { return send(res, 404, { error: 'not found' }); }
   }
+  res.writeHead(200, { 'Content-Type': MIME[extname(rel)] || 'application/octet-stream' });
+  res.end(data);
 }
 
 async function serveUpload(res, name) {
@@ -68,16 +70,32 @@ async function serveUpload(res, name) {
   const file = join(UPLOAD_DIR, safe);
   if (!file.startsWith(UPLOAD_DIR)) return send(res, 403, { error: 'forbidden' });
   try {
+    const meta = await import('fs/promises').then(m => m.stat(file));
+    if (meta.size > 10 * 1024 * 1024) return send(res, 413, { error: 'upload too large' });
     const data = await readFile(file);
     res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' });
     res.end(data);
   } catch { send(res, 404, { error: 'not found' }); }
 }
 
-// minimal pubkey sanity check (64 hex chars)
 const isPubkey = (s) => typeof s === 'string' && /^[0-9a-f]{64}$/i.test(s);
 
+function isPng(buffer) {
+  return buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47;
+}
+function isJpeg(buffer) {
+  return buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
+}
+function isImage(buffer) {
+  return isPng(buffer) || isJpeg(buffer);
+}
+
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+
 const server = createServer(async (req, res) => {
+  res.setHeader('Content-Security-Policy', CSP);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -118,42 +136,74 @@ const server = createServer(async (req, res) => {
       return b ? send(res, 200, { bounty: b }) : send(res, 404, { error: 'not found' });
     }
 
-    // pledge
+    // pledge — enforce Nostr sig (prod: hard reject; dev: warn+accept)
     const pledgeMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/pledge$/);
     if (pledgeMatch && req.method === 'POST') {
       const body = await readJson(req);
       if (!isPubkey(body.pledger_pubkey)) return send(res, 400, { error: 'valid pledger_pubkey required' });
       const amt = parseInt(body.amount_sats);
       if (!amt || amt < 1) return send(res, 400, { error: 'amount_sats must be >= 1' });
+      let sigVerified = false;
+      if (!body.sig_event || typeof body.sig_event !== 'object') {
+        if (isProd) return send(res, 403, { error: 'Nostr signature required — open this in the Fedi app.' });
+        console.warn('[server] DEV: pledge without Nostr signature from', body.pledger_pubkey.slice(0, 12));
+      } else {
+        const v = verifyNostrEvent(body.sig_event, body.pledger_pubkey);
+        if (!v.ok) {
+          if (isProd) return send(res, 403, { error: `Nostr signature verification failed: ${v.error}` });
+          console.warn('[server] DEV: invalid Nostr sig from', body.pledger_pubkey.slice(0, 12), v.error);
+        } else {
+          sigVerified = true;
+        }
+      }
       db.ensureUser(body.pledger_pubkey, body.display_name);
       const pledge = db.upsertPledge({
         bounty_id: pledgeMatch[1], pledger_pubkey: body.pledger_pubkey,
-        amount_sats: amt, sig_event_id: body.sig_event_id, sig: body.sig,
+        amount_sats: amt,
+        sig_event_id: body.sig_event?.id || null,
+        sig: body.sig_event?.sig || null,
+        sig_event_json: body.sig_event ? JSON.stringify(body.sig_event) : null,
+        sig_verified: sigVerified,
       });
       return send(res, 201, { pledge, bounty: db.getBounty(pledgeMatch[1]) });
     }
 
-    // claim
+    // claim — enforce Nostr sig
     const claimMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/claim$/);
     if (claimMatch && req.method === 'POST') {
       const body = await readJson(req);
       if (!isPubkey(body.worker_pubkey)) return send(res, 400, { error: 'valid worker_pubkey required' });
+      let sigVerified = false;
+      if (!body.sig_event || typeof body.sig_event !== 'object') {
+        if (isProd) return send(res, 403, { error: 'Nostr signature required — open this in the Fedi app.' });
+        console.warn('[server] DEV: claim without Nostr signature from', body.worker_pubkey.slice(0, 12));
+      } else {
+        const v = verifyNostrEvent(body.sig_event, body.worker_pubkey);
+        if (!v.ok) {
+          if (isProd) return send(res, 403, { error: `Nostr signature verification failed: ${v.error}` });
+          console.warn('[server] DEV: invalid Nostr sig from', body.worker_pubkey.slice(0, 12), v.error);
+        } else {
+          sigVerified = true;
+        }
+      }
       db.ensureUser(body.worker_pubkey, body.display_name);
       const bounty = db.claimBounty(claimMatch[1], body.worker_pubkey);
       return send(res, 200, { bounty });
     }
 
-    // proof (JSON: { image_base64, mime, proof_note, worker_invoice })
+    // proof — with image magic-number validation
     const proofMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/proof$/);
     if (proofMatch && req.method === 'POST') {
       const body = await readJson(req);
       let imagePath = null;
       if (body.image_base64) {
         await mkdir(UPLOAD_DIR, { recursive: true });
-        const ext = (body.mime && body.mime.includes('png')) ? '.png' : '.jpg';
-        const fname = `proof-${proofMatch[1]}-${randomUUID().slice(0, 8)}${ext}`;
-        const data = Buffer.from(body.image_base64.replace(/^data:[^,]+,/, ''), 'base64');
+        const b64 = body.image_base64.replace(/^data:[^,]+,/, '');
+        const data = Buffer.from(b64, 'base64');
         if (data.length > 8 * 1024 * 1024) return send(res, 400, { error: 'image too large (max 8MB)' });
+        if (!isImage(data)) return send(res, 400, { error: 'upload must be a PNG or JPEG image' });
+        const ext = isPng(data) ? '.png' : '.jpg';
+        const fname = `proof-${proofMatch[1]}-${randomUUID().slice(0, 8)}${ext}`;
         await writeFile(join(UPLOAD_DIR, fname), data);
         imagePath = `/uploads/${fname}`;
       }
@@ -163,7 +213,6 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { bounty });
     }
 
-    // pay a pledge (record WebLN preimage)
     const payMatch = p.match(/^\/api\/pledges\/([0-9a-f-]{36})\/pay$/);
     if (payMatch && req.method === 'POST') {
       const body = await readJson(req);
@@ -171,14 +220,12 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { pledge });
     }
 
-    // settle
     const settleMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/settle$/);
     if (settleMatch && req.method === 'POST') {
       const bounty = db.settleBounty(settleMatch[1]);
       return send(res, 200, { bounty });
     }
 
-    // flag
     const flagMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/flag$/);
     if (flagMatch && req.method === 'POST') {
       const body = await readJson(req);
@@ -188,7 +235,6 @@ const server = createServer(async (req, res) => {
       return send(res, 201, { flag });
     }
 
-    // user trust profile
     const userMatch = p.match(/^\/api\/users\/([0-9a-f]{64})$/);
     if (userMatch && req.method === 'GET') {
       db.ensureUser(userMatch[1]);
@@ -201,7 +247,7 @@ const server = createServer(async (req, res) => {
 
     // ── uploads & static ──
     if (p.startsWith('/uploads/')) return serveUpload(res, p.slice('/uploads/'.length));
-    if (!p.startsWith('/api/')) return serveStatic(res, p);
+    if (!p.startsWith('/api/')) return serveStatic(res, p, req);
 
     return send(res, 404, { error: 'not found' });
   } catch (err) {
