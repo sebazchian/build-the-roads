@@ -149,6 +149,22 @@ function emptyState(title, body) {
   return DIV('empty', h('b', '', title), body);
 }
 
+function hint(text) {
+  return h('div', 'hint', h('b', '', 'How it works: '), text);
+}
+
+function howItWorks() {
+  return DIV('card help',
+    h('div', 'help-title', '🤝 How it works'),
+    h('div', 'help-step', h('span', 'num', '1'), h('div', '', h('b', '', 'Someone posts a need.'), ' — Paint the hall, fix the gate, clean the lot.')),
+    h('div', 'help-step', h('span', 'num', '2'), h('div', '', h('b', '', 'Neighbours chip in sats.'), ' — Pledge a small amount. If the work gets done, you pay.')),
+    h('div', 'help-step', h('span', 'num', '3'), h('div', '', h('b', '', 'A worker claims it.'), ' — They do the job and send proof.')),
+    h('div', 'help-step', h('span', 'num', '4'), h('div', '', h('b', '', 'Pledgers pay up.'), ' — Everyone who promised sends sats to the worker.')),
+    h('div', 'help-foot', 'No upfront escrow. You hold your own money until the work is done. If someone does not pay, the community remembers.')
+  );
+}
+
+
 /* ================================================================
    HOME
    ================================================================ */
@@ -161,6 +177,8 @@ async function renderHome(filter) {
   stack.appendChild(makeTabs(filter === 'open' ? 'open' : 'all'));
   wrap.appendChild(stack);
 
+  wrap.appendChild(howItWorks());
+
   let list;
   try {
     const qs = filter ? `?status=${filter}` : '';
@@ -172,7 +190,7 @@ async function renderHome(filter) {
       bounties.forEach(b => list.appendChild(bountyCard(b)));
     }
   } catch (e) {
-    list = DIV(''); list.appendChild(emptyState('Could not load.', e.message));
+    list = DIV('stack'); list.appendChild(emptyState('Could not load.', e.message));
   }
   wrap.appendChild(list);
 
@@ -220,6 +238,8 @@ function renderNew() {
   stack.appendChild(backLink('/open', 'Open needs'));
   stack.appendChild(DIV('', h('h1', 't1', 'What needs doing?'), h('p', 'body', "Describe it like you're telling a neighbour.")));
   w.appendChild(stack);
+
+  w.appendChild(howItWorks());
 
   const card = DIV('card');
 
@@ -317,6 +337,7 @@ async function renderDetail(id) {
   if (b.status === 'open') {
     const pledgeCard = DIV('card');
     pledgeCard.appendChild(h('div', 'overline', 'Your pledge'));
+    pledgeCard.appendChild(hint('You are promising to pay if a worker does the job. Your sats stay in your wallet until then.'));
     const pAmt = h('input', ''); pAmt.type = 'number'; pAmt.placeholder = 'e.g. 5000'; if (myPledge) pAmt.value = myPledge.amount_sats;
     pledgeCard.appendChild(pAmt);
 
@@ -331,7 +352,10 @@ async function renderDetail(id) {
 
     if (!isWorker && !myPledge) {
       const canClaim = b.threshold_sats === 0 || b.pot_sats >= b.threshold_sats;
-      const claimCard = DIV('card', BTN('btn btn-ghost', canClaim ? "🙋 I'll do this" : 'Need ' + fmtS(Math.max(0, b.threshold_sats - b.pot_sats)) + ' more', async () => {
+      const claimCard = DIV('card');
+      claimCard.appendChild(h('div', 'overline', 'Do the work'));
+      claimCard.appendChild(hint('Claim this job, do the work, then send proof. The pledgers will pay you.'));
+      claimCard.appendChild(BTN('btn btn-ghost', canClaim ? "🙋 I'll do this" : 'Need ' + fmtS(Math.max(0, b.threshold_sats - b.pot_sats)) + ' more', async () => {
         if (!canClaim) return;
         const sig = await signAction('Claim', { kind: 'm2s-claim', bounty: b.id });
         await api(`/bounties/${id}/claim`, { method: 'POST', body: { worker_pubkey: ME, display_name: MENAME, community_id: COMMUNITY, ...sig } });
@@ -345,6 +369,7 @@ async function renderDetail(id) {
   if (b.status === 'claimed' && isWorker) {
     const pf = DIV('card');
     pf.appendChild(h('div', 'overline', 'Submit proof'));
+    pf.appendChild(hint('Take a photo of the finished work and paste your Lightning invoice so the pledgers can pay you.'));
     const pImg = h('input', ''); pImg.type = 'file'; pImg.accept = 'image/*'; pf.appendChild(pImg);
     pf.appendChild(h('label', 'field-label', 'Note (optional)'));
     const pNote = h('textarea', ''); pNote.placeholder = 'What did you do?'; pf.appendChild(pNote);
@@ -373,6 +398,7 @@ async function renderDetail(id) {
       const pay = DIV('card');
       pay.appendChild(h('div', 'overline', 'Your turn'));
       pay.appendChild(h('div', 'b-desc', 'You pledged ' + fmtS(myPledge.amount_sats) + '. The work is done.'));
+      pay.appendChild(hint('Tap Pay to send sats from your Lightning wallet to the worker. You promised — now you keep your word. If the work is bad, use Flag instead.'));
       pay.appendChild(DIV('stack-xs',
         BTN('btn', 'Pay ' + fmtS(myPledge.amount_sats), async () => {
           if (!b.worker_invoice) return toast('No invoice yet.', true);
@@ -388,10 +414,14 @@ async function renderDetail(id) {
       bodyStack.appendChild(pay);
     }
     if (b.creator_pubkey === ME) {
-      bodyStack.appendChild(DIV('card', BTN('btn btn-ghost', 'Close bounty', async () => {
+      const settleCard = DIV('card');
+      settleCard.appendChild(h('div', 'overline', 'Close it out'));
+      settleCard.appendChild(hint('This marks the bounty done. Any pledgers who have not paid yet will get off the hook.'));
+      settleCard.appendChild(BTN('btn btn-ghost', 'Close bounty', async () => {
         await api(`/bounties/${id}/settle`, { method: 'POST', body: { community_id: COMMUNITY } });
         toast('Settled.'); renderDetail(id);
-      })));
+      }));
+      bodyStack.appendChild(settleCard);
     }
   }
 }
