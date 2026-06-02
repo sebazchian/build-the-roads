@@ -500,7 +500,7 @@ function renderPhilosophy() {
   bodyStack.appendChild(DIV('card',
     h('div', 'overline', 'The old problem'),
     h('div', 'b-desc', '"Who will build the roads?" The question assumes only a government can coordinate public goods. But the real question is: who decides what gets built?'),
-    h('div', 'b-desc', 'In a township, the problem is sharper. The hall needs painting. The gate is rusted. The sign fell down. Everyone agrees it should be fixed. But nobody fixes it.'),
+    h('div', 'b-desc', 'In every community, the same thing happens. The hall needs painting. The gate is rusted. The sign fell down. Everyone agrees it should be fixed. But nobody fixes it.'),
     h('div', 'b-desc', h('b', '', '"Everybody\'s job is nobody\'s job."'))
   ));
 
@@ -527,7 +527,7 @@ function renderPhilosophy() {
 
   bodyStack.appendChild(DIV('card',
     h('div', 'overline', 'For the circular economy'),
-    h('div', 'b-desc', 'Bitcoin Ekasi is not just about spending sats. It is about earning sats by solving real problems for real neighbours. The more problems get solved, the more useful Bitcoin becomes. The more useful it becomes, the more people want it.'),
+    h('div', 'b-desc', 'This is not just about spending sats. It is about earning sats by solving real problems for real neighbours. The more problems get solved, the more useful Bitcoin becomes in your community. The more useful it becomes, the more people want it.'),
     h('div', 'b-desc', 'This is how circular economies start. One job at a time.')
   ));
 }
