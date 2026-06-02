@@ -135,14 +135,15 @@ function renderHeader() {
   hd.appendChild(brand);
 
   const meta = DIV('header-meta');
-  if (ME) {
-    meta.appendChild(h('div', 'up', esc(MENAME || short(ME))));
-    meta.appendChild(h('div', 'down', short(ME)));
-  } else if (COMMUNITY) {
+  if (COMMUNITY) {
     const badge = DIV('badge', cName(COMMUNITY));
     const change = BTN('badge-change', 'change', () => { setCommunity(null); go('/'); });
     badge.appendChild(change);
     meta.appendChild(badge);
+  }
+  if (ME) {
+    meta.appendChild(h('div', 'up', esc(MENAME || short(ME))));
+    meta.appendChild(h('div', 'down', short(ME)));
   }
   const phil = BTN('btn btn-ghost btn-sm', 'Why?', () => go('/philosophy'));
   phil.style.marginLeft = '8px';
