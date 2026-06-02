@@ -102,6 +102,19 @@ Chronological decision + progress log. Newest at bottom.
 - Added mytwosats.service (systemd, hardened, auto-restart) and README.md.
 - NOTE: pkill scare — broad `pkill -f "node server.js"` was SIGTERM'd by shell before executing; confirmed no other service harmed. LESSON: never use broad pkill patterns; target by cwd/PID. Will use precise pgrep-by-cwd going forward.
 
+## 2026-06-02 ~14:30 UTC — Full UI/UX ground-up rewrite
+
+**PROBLEM:** Previous iterations accumulated CSS conflicts, overlapping visual states, and DOM-manipulation spaghetti. Cards bled into each other, click targets overlapped, type scale was inconsistent.
+
+**FIX:** Complete rewrite from scratch.
+
+- Atomic CSS classes with single source of truth. No conflicting rules.
+- Dark-first (`#0C0C0F`) with `prefers-color-scheme: light`.
+- Inter font, consistent spacing, intentional radii.
+- Clean DOM factory functions (`E`, `DIV`, `A`, `BTN`). No `innerHTML` soup, no DOM accumulation bugs.
+- Professional component structure: header, tabs, cards, forms, toasts, progress bars.
+- All E2E flows passing. Cross-community isolation verified. Other services healthy.
+
 ### Next (Phase 2, not yet done)
 - Server-side Nostr signature verification (nostr-tools verifyEvent)
 - Pledge expiry automation; categories/geo filter
