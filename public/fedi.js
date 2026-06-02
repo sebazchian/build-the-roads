@@ -10,7 +10,10 @@ export async function getPubkey() {
   if (window.nostr?.getPublicKey) {
     try { return await window.nostr.getPublicKey(); } catch (e) { console.warn('nostr.getPublicKey failed', e); }
   }
-  // Dev fallback: stable random pubkey-shaped hex per browser
+  return null; // no silent fallback — caller must handle
+}
+
+export function generateDevKey() {
   let pk = localStorage.getItem(LS_KEY);
   if (!pk) {
     const bytes = crypto.getRandomValues(new Uint8Array(32));

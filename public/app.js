@@ -1,5 +1,5 @@
 /* my two sats — clean, no-weird-links */
-import { getPubkey, getDisplayName, signAction, makeInvoice, payInvoice, inFedi } from './fedi.js';
+import { getPubkey, getDisplayName, signAction, makeInvoice, payInvoice, inFedi, generateDevKey } from './fedi.js';
 
 /* ── State ── */
 let ME=null, MENAME=null, COMMUNITY=null, ALL_COMMUNITIES=[];
@@ -623,12 +623,37 @@ async function renderPicker() {
 }
 
 /* ── Boot ── */
+function renderSignIn() {
+  const app = $('app');
+  renderHeader();
+  const card = DIV('card empty');
+  card.appendChild(h('b', '', 'Sign in'));
+  if (inFedi()) {
+    card.appendChild(h('p', '', 'Connect your Nostr identity to post, pledge, or claim bounties.'));
+    card.appendChild(BTN('btn', 'Connect Nostr', async () => {
+      try {
+        ME = await getPubkey();
+        if (!ME) return toast('Nostr not available', true);
+        MENAME = await getDisplayName();
+        route();
+      } catch (e) { toast(e.message, true); }
+    }));
+  } else {
+    card.appendChild(h('p', '', 'You are in a normal browser. Use a dev key for testing, or open this in the Fedi app for real Lightning + Nostr.'));
+    card.appendChild(DIV('gap-1',
+      BTN('btn', 'Use dev key', () => { ME = generateDevKey(); MENAME = 'Dev User'; route(); })
+    ));
+  }
+  app.appendChild(card);
+}
+
 (async function boot() {
   resolveCommunity();
   if (!COMMUNITY && !localStorage.getItem('m2s_community') && !new URLSearchParams(location.search).has('community')) {
     renderPicker(); return;
   }
   try { ME = await getPubkey(); MENAME = await getDisplayName(); } catch {}
+  if (!ME) { renderSignIn(); return; }
   if (!inFedi()) {
     const ban = h('div', 'dev-banner', 'Dev mode — open in Fedi app for real Lightning + Nostr.');
     document.querySelector('main').prepend(ban);
