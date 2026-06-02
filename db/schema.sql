@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS bounties (
   creator_pubkey TEXT NOT NULL,
   threshold_sats INTEGER NOT NULL DEFAULT 0, -- all-or-nothing; 0 = claimable anytime
   expires_at    INTEGER,                     -- optional unix ts; pledges expire if unclaimed
+  community_id TEXT NOT NULL DEFAULT 'default',
   status        TEXT NOT NULL DEFAULT 'open',-- open | claimed | proof_submitted | settled | cancelled | expired
   worker_pubkey TEXT,                        -- set when claimed
   worker_invoice TEXT,                       -- BOLT11 the worker provides at proof time (optional shared invoice)
@@ -40,6 +41,7 @@ CREATE TABLE IF NOT EXISTS bounties (
   FOREIGN KEY (creator_pubkey) REFERENCES users(pubkey)
 );
 CREATE INDEX IF NOT EXISTS idx_bounties_status ON bounties(status);
+CREATE INDEX IF NOT EXISTS idx_bounties_community ON bounties(community_id, status);
 CREATE INDEX IF NOT EXISTS idx_bounties_created ON bounties(created_at);
 
 -- Pledges: a commitment of sats toward a bounty. Provable via signed Nostr event.

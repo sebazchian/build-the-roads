@@ -104,6 +104,9 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const p = url.pathname;
 
+  // community id: from query params (GET) or body (mutations)
+  const getCid = () => url.searchParams.get('community') || 'default';
+
   try {
     // ── API ──
     if (p === '/api/health') {
@@ -112,13 +115,15 @@ const server = createServer(async (req, res) => {
 
     if (p === '/api/bounties' && req.method === 'GET') {
       const status = url.searchParams.get('status') || undefined;
-      return send(res, 200, { bounties: db.listBounties({ status }) });
+      const cid = getCid();
+      return send(res, 200, { bounties: db.listBounties({ status, community_id: cid }) });
     }
 
     if (p === '/api/bounties' && req.method === 'POST') {
       const b = await readJson(req);
       if (!b.title || !b.description) return send(res, 400, { error: 'title and description required' });
       if (!isPubkey(b.creator_pubkey)) return send(res, 400, { error: 'valid creator_pubkey required' });
+      const cid = b.community_id || 'default';
       db.ensureUser(b.creator_pubkey, b.display_name);
       const bounty = db.createBounty({
         title: String(b.title).slice(0, 200),
@@ -126,13 +131,15 @@ const server = createServer(async (req, res) => {
         category: b.category, creator_pubkey: b.creator_pubkey,
         threshold_sats: parseInt(b.threshold_sats) || 0,
         expires_at: b.expires_at ? parseInt(b.expires_at) : null,
+        community_id: cid,
       });
       return send(res, 201, { bounty });
     }
 
     const bountyMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})$/);
     if (bountyMatch && req.method === 'GET') {
-      const b = db.getBounty(bountyMatch[1]);
+      const cid = getCid();
+      const b = db.getBounty(bountyMatch[1], cid);
       return b ? send(res, 200, { bounty: b }) : send(res, 404, { error: 'not found' });
     }
 
@@ -165,7 +172,8 @@ const server = createServer(async (req, res) => {
         sig_event_json: body.sig_event ? JSON.stringify(body.sig_event) : null,
         sig_verified: sigVerified,
       });
-      return send(res, 201, { pledge, bounty: db.getBounty(pledgeMatch[1]) });
+      const cid = body.community_id || getCid();
+      return send(res, 201, { pledge, bounty: db.getBounty(pledgeMatch[1], cid) });
     }
 
     // claim — enforce Nostr sig
@@ -187,7 +195,8 @@ const server = createServer(async (req, res) => {
         }
       }
       db.ensureUser(body.worker_pubkey, body.display_name);
-      const bounty = db.claimBounty(claimMatch[1], body.worker_pubkey);
+      const cid = body.community_id || getCid();
+      const bounty = db.claimBounty(claimMatch[1], body.worker_pubkey, cid);
       return send(res, 200, { bounty });
     }
 
@@ -207,9 +216,10 @@ const server = createServer(async (req, res) => {
         await writeFile(join(UPLOAD_DIR, fname), data);
         imagePath = `/uploads/${fname}`;
       }
+      const cid = body.community_id || getCid();
       const bounty = db.submitProof(proofMatch[1], {
         proof_image: imagePath, proof_note: body.proof_note, worker_invoice: body.worker_invoice,
-      });
+      }, cid);
       return send(res, 200, { bounty });
     }
 
@@ -222,7 +232,9 @@ const server = createServer(async (req, res) => {
 
     const settleMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/settle$/);
     if (settleMatch && req.method === 'POST') {
-      const bounty = db.settleBounty(settleMatch[1]);
+      const body = await readJson(req);
+      const cid = body.community_id || getCid();
+      const bounty = db.settleBounty(settleMatch[1], cid);
       return send(res, 200, { bounty });
     }
 
@@ -242,7 +254,8 @@ const server = createServer(async (req, res) => {
     }
 
     if (p === '/api/leaderboards' && req.method === 'GET') {
-      return send(res, 200, db.leaderboards());
+      const cid = getCid();
+      return send(res, 200, db.leaderboards(cid));
     }
 
     // ── uploads & static ──

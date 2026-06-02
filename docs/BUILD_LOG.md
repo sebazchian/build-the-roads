@@ -23,7 +23,36 @@ Chronological decision + progress log. Newest at bottom.
 - Worker score = completed_claims / total_claims, minus flags for bad/fake proof.
 - Both displayed as % + simple badge. New users start at neutral (e.g., "New").
 
-## 2026-06-02 ~12:22 UTC — Security audit + UX humanization
+## 2026-06-02 ~13:32 UTC — Community isolation + UI overhaul + link fixes
+
+**COMMUNITY ISOLATION:**
+- `community_id` added to DB schema (`default` fallback), indexed.
+- ALL reads filtered by `community_id`: list, get, leaderboard. Cross-community access returns 404.
+- ALL mutations carry `community_id`: create, pledge, claim, proof, settle.
+- Frontend detects community via `?community=` URL param → `localStorage` → picker.
+- Community picker rendered when not set. Pre-seeded with `bitcoin-ekasi` and `default`.
+- Guardian installs app with `?community=bitcoin-ekasi` query param → users auto-join correct community.
+
+**LINK FIXES:**
+- All internal nav now uses real `<a href>` elements with `onclick` handlers that call `e.preventDefault()`.
+- Tab buttons (`open`, `all`, `leaderboard`) are real `<a>` tags — crawlable and keyboard-accessible.
+- Back links, bounty cards, logo — all actual links.
+
+**VISUAL OVERHAUL:**
+- No longer washed-out earthy off-white. Now dark-mode-first charcoal (`#101015`) with Bitcoin orange (`#FF8D1A`) accent.
+- Respects `prefers-color-scheme: light` for bright environments.
+- Clean Inter sans-serif throughout — no AI-looking botanist vibes.
+- Cards have crisp borders, subtle hover glow on orange.
+- SVG logo mark (B inside orange circle) instead of text-only logo.
+- Status badges: semantic colour pills (ocean=open, orange=claimed, yellow=proof, green=settled).
+- Trust score row cleaned up — no "New" clutter, just % when meaningful.
+- Sticky header with blur + proper mobile padding.
+
+**KNOWN ISSUES:**
+- `i18n.js` scaffold present but not wired — Phase-2.
+- Password-style login (federation sign-in) is vapour — Fedi handles auth via `window.nostr.getPublicKey()`.
+- No real community discovery API from Fedi docs — we use URL param + localStorage instead.
+- No `window.fedi.getCommunityId()` found in docs; `manageCommunities` permission requires guardian approval.
 
 **AUDIT FINDINGS & FIXES:**
 1. 🔴 Nostr sig enforcement: pledge/claim now hard-rejects unsigned requests in production (`NODE_ENV=production`), gives clear 401. Dev mode warns to console but accepts for local testing.
