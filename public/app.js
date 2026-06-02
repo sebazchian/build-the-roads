@@ -17,7 +17,14 @@ const E = (tag, cls='', ...children) => {
   children.forEach(c => {
     if (c == null) return;
     if (typeof c === 'string') el.appendChild(document.createTextNode(c));
-    else el.appendChild(c);
+    else if (c instanceof Node) el.appendChild(c);
+    else if (typeof c === 'object') {
+      Object.entries(c).forEach(([k, v]) => {
+        if (k === 'style' && typeof v === 'string') el.style.cssText = v;
+        else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+        else el.setAttribute(k, v);
+      });
+    }
   });
   return el;
 };
