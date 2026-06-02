@@ -51,7 +51,24 @@ function makeBrandOrb() {
   return svg;
 }
 
-/* ── API ── */
+/* ── Category config ── */
+const CATEGORIES = [
+  { id: 'cleanup',   label: '🧹 Cleanup',      cls: 'tag-cleanup' },
+  { id: 'painting',  label: '🎨 Painting',     cls: 'tag-paint' },
+  { id: 'repair',    label: '🔧 Repair',       cls: 'tag-repair' },
+  { id: 'build',     label: '🏗️ Build',        cls: 'tag-build' },
+  { id: 'signage',   label: '🪧 Signage',      cls: 'tag-signage' },
+  { id: 'electrical',label: '⚡ Electrical',   cls: 'tag-electrical' },
+  { id: 'plumbing',  label: '🚰 Plumbing',     cls: 'tag-plumbing' },
+  { id: 'transport', label: '🚚 Transport',    cls: 'tag-transport' },
+  { id: 'garden',    label: '🌱 Garden',       cls: 'tag-garden' },
+  { id: 'security',  label: '🔒 Security',     cls: 'tag-security' },
+  { id: 'teaching',  label: '📚 Teaching',     cls: 'tag-teaching' },
+  { id: 'event',     label: '🎪 Event',        cls: 'tag-event' },
+  { id: 'other',     label: '📝 Other',        cls: 'tag-other' },
+];
+const CAT_MAP = Object.fromEntries(CATEGORIES.map(c => [c.id, c]));
+
 const api = async (path, opts = {}) => {
   const sep = path.includes('?') ? '&' : '?';
   const r = await fetch('/api' + path + sep + 'community=' + encodeURIComponent(COMMUNITY || 'default'), {
@@ -99,6 +116,7 @@ function route() {
   else if (h === '/all') renderHome(null);
   else if (h === '/new') renderNew();
   else if (h === '/leaderboard') renderLeaderboard();
+  else if (h === '/philosophy') renderPhilosophy();
   else if (h.startsWith('/b/')) renderDetail(h.slice(3));
   else renderHome('open');
 }
@@ -125,6 +143,9 @@ function renderHeader() {
     badge.appendChild(change);
     meta.appendChild(badge);
   }
+  const phil = BTN('btn btn-ghost btn-sm', 'Why?', () => go('/philosophy'));
+  phil.style.marginLeft = '8px';
+  meta.appendChild(phil);
   hd.appendChild(meta);
 }
 
@@ -148,6 +169,21 @@ function backLink(href, text) {
 function emptyState(title, body) {
   return DIV('empty', h('b', '', title), body);
 }
+
+function trustBadge(t) {
+  if (!t) return null;
+  const badge = t.pledger?.badge || t.worker?.badge || 'New';
+  const cls = 'trust trust-' + badge.toLowerCase();
+  const rate = t.pledger?.fulfillment_rate;
+  const text = rate != null ? `${badge} · ${rate}% pays` : badge;
+  return h('span', cls, text);
+}
+
+async function loadTrust(pubkey) {
+  try { const { trust } = await api('/users/' + pubkey); return trust; }
+  catch { return null; }
+}
+
 
 function hint(text) {
   return h('div', 'hint', h('b', '', 'How it works: '), text);
@@ -199,15 +235,14 @@ async function renderHome(filter) {
 }
 
 function bountyCard(b) {
-  const catCls = { cleanup: 'tag-cleanup', painting: 'tag-paint', repair: 'tag-repair', other: 'tag-other' }[b.category] || 'tag-other';
-  const catLbl = { cleanup: '🧹 Cleanup', painting: '🎨 Painting', repair: '🔧 Repair', other: '📝 Other' }[b.category] || 'Other';
+  const cat = CAT_MAP[b.category] || CAT_MAP.other;
   const pct = b.threshold_sats > 0 ? Math.min(100, Math.round(b.pot_sats / b.threshold_sats * 100)) : 0;
 
   const card = DIV('card card-interactive');
   card.onclick = () => go('/b/' + b.id);
 
   card.appendChild(DIV('b-row',
-    h('span', 'tag ' + catCls, esc(catLbl)),
+    h('span', 'tag ' + cat.cls, esc(cat.label)),
     h('span', 'tag-status tag-' + b.status, esc({ open: 'Open', claimed: 'Claimed', proof_submitted: 'Proof sent', settled: 'Done', cancelled: 'Cancelled', expired: 'Expired' }[b.status] || b.status))
   ));
   card.appendChild(h('div', 'b-title', esc(b.title)));
@@ -250,8 +285,8 @@ function renderNew() {
   card.appendChild(h('label', 'field-label', 'Tell the story')); card.appendChild(fDesc);
 
   const fCat = h('select', '');
-  ['cleanup:🧹 Cleanup', 'painting:🎨 Painting', 'repair:🔧 Repair', 'other:📝 Other'].forEach(s => {
-    const [v, l] = s.split(':'); const o = el('option'); o.value = v; o.textContent = l; fCat.appendChild(o);
+  CATEGORIES.forEach(c => {
+    const o = el('option'); o.value = c.id; o.textContent = c.label; fCat.appendChild(o);
   });
   card.appendChild(h('label', 'field-label', 'Category')); card.appendChild(fCat);
 
@@ -294,15 +329,14 @@ async function renderDetail(id) {
   const isWorker = b.worker_pubkey === ME;
   const pct = b.threshold_sats > 0 ? Math.min(100, Math.round(b.pot_sats / b.threshold_sats * 100)) : 0;
 
-  const catCls = { cleanup: 'tag-cleanup', painting: 'tag-paint', repair: 'tag-repair', other: 'tag-other' }[b.category] || 'tag-other';
-  const catLbl = { cleanup: '🧹 Cleanup', painting: '🎨 Painting', repair: '🔧 Repair', other: '📝 Other' }[b.category] || 'Other';
+  const cat = CAT_MAP[b.category] || CAT_MAP.other;
 
   const bodyStack = DIV('stack');
   w.appendChild(bodyStack);
 
   // title block
   const titleBlock = DIV('stack-sm padded');
-  titleBlock.appendChild(h('span', 'tag ' + catCls, catLbl));
+  titleBlock.appendChild(h('span', 'tag ' + cat.cls, cat.label));
   titleBlock.appendChild(h('h1', 't2', esc(b.title)));
   bodyStack.appendChild(titleBlock);
 
@@ -324,14 +358,31 @@ async function renderDetail(id) {
   if (b.pledges.length) {
     const pl = DIV('pl-list');
     b.pledges.forEach(p => {
-      pl.appendChild(DIV('pl-row',
-        DIV('pl-who', p.status === 'paid' ? h('span', 'pl-paid', 'paid') : null, h('span', 'pl-addr', short(p.pledger_pubkey))),
+      const row = DIV('pl-row',
+        DIV('pl-who', p.status === 'paid' ? h('span', 'pl-paid', 'paid') : null, h('span', 'pl-addr', short(p.pledger_pubkey)), h('span', 'trust-slot', { 'data-pk': p.pledger_pubkey })),
         h('span', 'pl-amt', fmtS(p.amount_sats))
-      ));
+      );
+      pl.appendChild(row);
     });
     pot.appendChild(pl);
+    // load trust badges async
+    setTimeout(() => {
+      b.pledges.forEach(async p => {
+        const t = await loadTrust(p.pledger_pubkey);
+        const slot = pot.querySelector('.trust-slot[data-pk="' + p.pledger_pubkey + '"]');
+        if (slot && t) slot.replaceWith(trustBadge(t));
+      });
+    }, 0);
   }
   bodyStack.appendChild(pot);
+
+  // Worker warning
+  if (b.status === 'open' && !isWorker) {
+    bodyStack.appendChild(DIV('card warn',
+      h('b', '', 'Workers:'),
+      ' This app cannot force pledgers to pay. We can only track who keeps their word. Check the trust scores below before claiming a job.'
+    ));
+  }
 
   // Actions — open
   if (b.status === 'open') {
@@ -431,8 +482,55 @@ function readFile(file) {
 }
 
 /* ================================================================
-   LEADERBOARD
+   PHILOSOPHY
    ================================================================ */
+function renderPhilosophy() {
+  const w = $('app');
+  renderHeader();
+
+  const lead = DIV('stack padded');
+  lead.appendChild(backLink('/open', 'Open needs'));
+  lead.appendChild(h('h1', 't1', 'Why this works'));
+  w.appendChild(lead);
+
+  const bodyStack = DIV('stack');
+  w.appendChild(bodyStack);
+
+  bodyStack.appendChild(DIV('card',
+    h('div', 'overline', 'The old problem'),
+    h('div', 'b-desc', '"Who will build the roads?" The question assumes only a government can coordinate public goods. But the real question is: who decides what gets built?'),
+    h('div', 'b-desc', 'In a township, the problem is sharper. The hall needs painting. The gate is rusted. The sign fell down. Everyone agrees it should be fixed. But nobody fixes it.'),
+    h('div', 'b-desc', h('b', '', '"Everybody\'s job is nobody\'s job."'))
+  ));
+
+  bodyStack.appendChild(DIV('card',
+    h('div', 'overline', 'The new answer'),
+    h('div', 'b-desc', 'It becomes somebody\'s job when enough people are willing to pay for it.'),
+    h('div', 'b-desc', 'Not through taxes. Not through a committee. Through direct, voluntary pledges. Neighbours say: "I will pay 5 000 sats if someone paints that hall." When enough people say the same thing, a worker sees the pot, claims the job, does the work, and collects.'),
+    h('div', 'b-desc', 'No manager. No budget meeting. No waiting for permission. Just people who need things, people who can do things, and sats that move when work is proven.')
+  ));
+
+  bodyStack.appendChild(DIV('card',
+    h('div', 'overline', 'Why Bitcoin?'),
+    h('div', 'b-desc', 'Sats are small enough that anyone can pledge. A few hundred sats is a meaningful signal. A few thousand is a real commitment. Lightning makes it instant and cheap.'),
+    h('div', 'b-desc', 'More importantly: Bitcoin does not care who you are. No bank account needed. No ID. No credit check. If you have a phone and a Lightning wallet, you can pledge, work, and earn.'),
+    h('div', 'b-desc', 'This is financial inclusion in action. Not a charity. A market.')
+  ));
+
+  bodyStack.appendChild(DIV('card',
+    h('div', 'overline', 'Trust, not force'),
+    h('div', 'b-desc', 'We do not hold your money. You pledge with your word, backed by your reputation. If you do not pay, the community sees it. Your trust score drops. Workers stop trusting your pledges.'),
+    h('div', 'b-desc', 'This is stronger than a contract. It is social pressure, encoded.'),
+    h('div', 'b-desc', h('b', '', 'Workers:'), ' We cannot force anyone to pay. We can only show who keeps their word. Check a pledger\'s trust score before you claim a job. If they are flaky, the pot may look big but the trusted pot is small.')
+  ));
+
+  bodyStack.appendChild(DIV('card',
+    h('div', 'overline', 'For the circular economy'),
+    h('div', 'b-desc', 'Bitcoin Ekasi is not just about spending sats. It is about earning sats by solving real problems for real neighbours. The more problems get solved, the more useful Bitcoin becomes. The more useful it becomes, the more people want it.'),
+    h('div', 'b-desc', 'This is how circular economies start. One job at a time.')
+  ));
+}
+
 async function renderLeaderboard() {
   const w = $('app');
   renderHeader();
@@ -467,24 +565,30 @@ function rankRow(pos, addr, right, gold) {
    COMMUNITY PICKER
    ================================================================ */
 async function renderPicker() {
-  const w = $('app');
   await loadCommunities();
+  const w = $('app');
+  renderHeader();
 
   const lead = DIV('stack padded');
+  lead.appendChild(backLink('/open', 'Back to bounties'));
   lead.appendChild(h('h1', 't1', 'Join a community'));
-  lead.appendChild(h('p', 'body', 'Each community has its own bounties and leaderboard.'));
+  lead.appendChild(h('p', 'body', 'Each community has its own bounties and leaderboard. Pick one to get started.'));
   w.appendChild(lead);
 
   const bodyStack = DIV('stack');
   w.appendChild(bodyStack);
 
-  ALL_COMMUNITIES.forEach(c => {
-    const card = DIV('card card-interactive');
-    card.appendChild(h('div', 'b-title', esc(c.name)));
-    card.appendChild(h('div', 'b-desc', esc(c.region || c.id)));
-    card.onclick = () => { setCommunity(c.id); go('/'); };
-    bodyStack.appendChild(card);
-  });
+  if (!ALL_COMMUNITIES.length) {
+    bodyStack.appendChild(emptyState('No communities yet.', 'Be the first to start one.'));
+  } else {
+    ALL_COMMUNITIES.forEach(c => {
+      const card = DIV('card card-interactive');
+      card.appendChild(h('div', 'b-title', esc(c.name)));
+      card.appendChild(h('div', 'b-desc', esc(c.region || c.description || c.id)));
+      card.onclick = () => { setCommunity(c.id); go('/'); };
+      bodyStack.appendChild(card);
+    });
+  }
 
   const create = DIV('card');
   create.appendChild(h('div', 'overline', 'Start a new community'));
