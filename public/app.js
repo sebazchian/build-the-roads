@@ -585,7 +585,7 @@ async function renderPicker() {
       const card = DIV('card card-interactive');
       card.appendChild(h('div', 'b-title', esc(c.name)));
       card.appendChild(h('div', 'b-desc', esc(c.region || c.description || c.id)));
-      card.onclick = () => { setCommunity(c.id); go('/'); };
+      card.onclick = () => { setCommunity(c.id); toast('Joined ' + esc(c.name)); go('/open'); };
       bodyStack.appendChild(card);
     });
   }
@@ -610,7 +610,7 @@ async function renderPicker() {
       const body = { id: cId.value.trim().toLowerCase(), name: cName.value.trim(), region: cReg.value.trim() || null, description: cDesc.value.trim() || null, admin_pubkey: ME, admin_display_name: MENAME };
       if (!body.id || !body.name) return toast('Need ID and name', true);
       const { community } = await api('/communities', { method: 'POST', body });
-      setCommunity(community.id); toast('Created.'); go('/');
+      setCommunity(community.id); toast('Created ' + esc(community.name)); go('/open');
     })
   ));
   bodyStack.appendChild(create);
