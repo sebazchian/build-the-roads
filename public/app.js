@@ -1,553 +1,470 @@
+/* my two sats — clean, professional UI
+   Design system: atomic classes, no innerHTML soup, intentional spacing. */
+
 import { getPubkey, getDisplayName, signAction, makeInvoice, payInvoice, inFedi } from './fedi.js';
 
-const $ = (id) => document.getElementById(id);
-const app = (() => {
-  const el = document.getElementById('app');
-  return {
-    clear: () => { el.innerHTML = ''; return el; },
-    append: (n) => { el.appendChild(n); return el; },
-    set: (html) => { el.innerHTML = html; return el; },
-    el: () => el,
-  };
-})();
+/* ── State ────────────────────────────────────────────── */
+let ME=null, MENAME=null, COMMUNITY=null, ALL_COMMUNITIES=[];
+const $ = id => document.getElementById(id);
+const appEl = () => $('app');
+const headerEl = () => $('header-inner');
+let currentCleanup = null; // function to call before re-render
 
-let ME = null, MENAME = null, ME_TRUST = null;
-let COMMUNITY = null;
+/* ── DOM helpers ──────────────────────────────────────── */
+const E = (tag, cls='', ...children) => {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  children.forEach(c => {
+    if (c == null) return;
+    if (typeof c === 'string') el.appendChild(document.createTextNode(c));
+    else el.appendChild(c);
+  });
+  return el;
+};
+const DIV = (cls, ...ch) => E('div', cls, ...ch);
+const A = (href, cls, ...ch) => { const a=E('a',cls,...ch); a.href=href; return a; };
+const BTN = (cls, text, onClick) => { const b=E('button',cls,text); if(onClick)b.onclick=onClick; return b; };
+const esc = s => String(s||'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const short = pk => pk ? pk.slice(0,5)+'…'+pk.slice(-4) : '—';
+const fmtSats = n => (n||0).toLocaleString()+' sats';
+const fmtNum = n => (n||0).toLocaleString();
 
-/* ── Community ──────────────────────────────────────────────────────── */
-let ALL_COMMUNITIES = [];
+/* ── SVG ── */
+const B_LOGO = E('svg','',{width:18,height:18,viewBox:'0 0 24 24',fill:'none'});
+B_LOGO.innerHTML = '<circle cx="12" cy="12" r="11" fill="#fff"/><text x="12" y="17" text-anchor="middle" font-size="14" font-weight="800" fill="#FF9419">₿</text>';
 
-function resolveCommunity() {
-  const url = new URLSearchParams(location.search).get('community');
-  const ls = localStorage.getItem('m2s_community');
-  COMMUNITY = url || ls || null;
-}
-function saveCommunity(id) {
-  COMMUNITY = id;
-  localStorage.setItem('m2s_community', id);
-}
-function communityLabel(id) {
-  if (!id) return 'No community';
-  const p = ALL_COMMUNITIES.find(c => c.id === id);
-  return p ? p.name : id.charAt(0).toUpperCase() + id.slice(1);
-}
-function communityParam() {
-  return '?community=' + encodeURIComponent(COMMUNITY || 'default');
-}
-async function loadCommunities() {
-  try {
-    ALL_COMMUNITIES = (await api('/communities')).communities || [];
-  } catch { ALL_COMMUNITIES = []; }
+/* ── Toast ── */
+function toast(msg, err=false) {
+  const t = E('div', 'toast'+(err?' err':''), msg);
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 3000);
 }
 
-/* ── URL routing ── */
-function setURLCommunity(id) {
-  const url = new URL(location.href);
-  url.searchParams.set('community', id);
-  history.replaceState(null, '', url.toString());
-}
-
-/* ── API ────────────────────────────────────────────────────────────── */
-const api = async (path, opts = {}) => {
-  const q = path.includes('?') ? '&' : '?';
-  const r = await fetch('/api' + path + q + 'community=' + encodeURIComponent(COMMUNITY || 'default'), {
-    headers: { 'Content-Type': 'application/json' },
-    ...opts,
+/* ── API ── */
+const api = async (path, opts={}) => {
+  const sep = path.includes('?') ? '&' : '?';
+  const r = await fetch('/api'+path+sep+'community='+encodeURIComponent(COMMUNITY||'default'), {
+    headers:{'Content-Type':'application/json'}, ...opts,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
-  const j = await r.json().catch(() => ({}));
+  const j = await r.json().catch(()=>({}));
   if (!r.ok) throw new Error(j.error || 'Request failed');
   return j;
 };
 
-/* ── Utils ──────────────────────────────────────────────────────────── */
-const fmtSats = (n) => n ? n.toLocaleString() + ' sats' : '0 sats';
-const fmtNum = (n) => n ? n.toLocaleString() : '0';
-const short = (pk) => pk ? pk.slice(0, 5) + '…' + pk.slice(-4) : '—';
-const esc = (s) => String(s || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
-const $m = (tag, cls, html) => { const e = document.createElement(tag); e.className = cls; if (html != null) e.innerHTML = html; return e; };
-const $t = (txt) => document.createTextNode(txt);
-
-function toast(msg, err=false) {
-  const t = document.createElement('div');
-  t.className = 'toast' + (err ? ' err' : '');
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3200);
+/* ── Community ── */
+function resolveCommunity() {
+  COMMUNITY = new URLSearchParams(location.search).get('community')
+           || localStorage.getItem('m2s_community')
+           || null;
+}
+function setCommunity(id) {
+  COMMUNITY = id;
+  localStorage.setItem('m2s_community', id);
+  const u = new URL(location.href);
+  if (id) u.searchParams.set('community', id); else u.searchParams.delete('community');
+  history.replaceState(null, '', u.toString());
+}
+async function loadCommunities() {
+  try { ALL_COMMUNITIES = (await api('/communities')).communities || []; }
+  catch { ALL_COMMUNITIES = [{id:'default',name:'Sandbox'}]; }
+}
+function communityName(id) {
+  const c = ALL_COMMUNITIES.find(x=>x.id===id);
+  return c ? c.name : (id ? id.charAt(0).toUpperCase()+id.slice(1) : '—');
 }
 
-function trustClass(badge) {
-  if (badge==='Reliable'||badge==='Trusted') return 'good';
-  if (badge==='Mixed') return 'warn';
-  if (badge==='Flaky'||badge==='Unreliable') return 'bad';
-  return '';
-}
-function trustLabel(t) {
-  if (t.fulfillment_rate !== null) return `${t.fulfillment_rate}% · ${t.badge}`;
-  return t.badge || '';
-}
-
-/* ── SVG logo ── */
-function svgLogo(cls='') {
-  return `<svg class="${cls}" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="50" cy="50" r="46" fill="#FF8D1A"/>
-    <path d="M52 28c-2.2 0-4.3.5-6.2 1.5l1 3.3c1.5-.7 3.2-1.1 5-1.1 5.6 0 10.2 4.3 10.2 9.6 0 3.6-2.2 6.7-5.4 8.3l1.2 4c4.4-2.3 7.4-6.9 7.4-12.2 0-7.6-6.4-13.8-14.2-13.8zm-4 6.8l-6.8 24.8 3.2.9 4.6-16.8 2.8.8-4.6 16.8 3.2.9 6.8-24.8-9.2-2.6zM38 40l-2 7.2c-1-.5-2-.8-3.2-.8-4.2 0-7.6 3.2-7.6 7 0 3.4 2.8 6.2 6.4 6.8l-.7 2.5c-5.2-1-9-5.4-9-10.6 0-6 5.2-10.9 11.6-10.9 1.5 0 2.9.3 4.2.8H38z" fill="#fff"/>
-  </svg>`;
-}
-
-/* ── Category data ── */
-const CATS = {
-  cleanup: { label:'Cleanup', icon:'🧹', cls:'cleanup' },
-  painting:{ label:'Painting', icon:'🎨', cls:'painting' },
-  repair:  { label:'Repair', icon:'🔧', cls:'repair' },
-  other:   { label:'Other', icon:'📝', cls:'other' }
-};
-const STATUS_WORDS = {
-  open:'Open', claimed:'Claimed', proof_submitted:'Waiting on payments',
-  settled:'Done & paid', cancelled:'Cancelled', expired:'Expired'
-};
-
-/* ================================================================
-   Router
-   ================================================================ */
-function route() {
-  // if no community set, force picker
-  if (!COMMUNITY) { renderCommunityPicker(); return; }
-  const h = location.hash.slice(1) || '/';
-  if (h === '/') return renderHome('open');
-  if (h === '/open') return renderHome('open');
-  if (h === '/all') return renderHome(null);
-  if (h === '/new') return renderNew();
-  if (h === '/leaderboard') return renderLeaderboard();
-  const m = h.match(/^\/b\/([0-9a-f-]{36})$/);
-  if (m) return renderDetail(m[1]);
-  renderHome('open');
-}
+/* ── Router ── */
+function navigate(hash) { location.hash = hash; }
 window.addEventListener('hashchange', route);
+
+function route() {
+  if (currentCleanup) { currentCleanup(); currentCleanup=null; }
+  if (!COMMUNITY) { renderPicker(); return; }
+  const h = location.hash.slice(1) || '/';
+  if (h==='/'||h==='/open') renderHome('open');
+  else if (h==='/all') renderHome(null);
+  else if (h==='/new') renderNew();
+  else if (h==='/leaderboard') renderLeaderboard();
+  else if (h.startsWith('/b/')) renderDetail(h.slice(3));
+  else renderHome('open');
+}
+
+/* ── Header ── */
+function renderHeader() {
+  const el = headerEl();
+  el.innerHTML = '';
+
+  const brand = A('#/', 'brand',
+    E('span','circle', B_LOGO.cloneNode(true)),
+    DIV('word', E('div','name','my two sats'), E('div','tag','community bounty board'))
+  );
+  brand.onclick = e => { if (e.button===0) { navigate('/'); return false; }};
+  el.appendChild(brand);
+
+  const meta = DIV('header-meta');
+  if (inFedi() && ME) {
+    meta.appendChild(E('div','name', esc(MENAME||short(ME))));
+    meta.appendChild(E('div','code', short(ME)));
+  } else if (COMMUNITY) {
+    const badge = DIV('badge', communityName(COMMUNITY));
+    const change = A('#','', 'change');
+    change.style = 'margin-left:6px;color:var(--ink-muted);font-size:10px;text-decoration:none';
+    change.onclick = e => { e.preventDefault(); setCommunity(null); navigate('/'); };
+    badge.appendChild(change);
+    meta.appendChild(badge);
+  }
+  el.appendChild(meta);
+}
+
+/* ── Tabs ── */
+function makeTabs(active) {
+  const wrap = DIV('pill-tabs');
+  const mk = (label, href, isActive) => {
+    const a = A('#'+href, isActive?'active':'', label);
+    a.onclick = e => { navigate(href); return false; };
+    return a;
+  };
+  wrap.appendChild(mk('Open','/open', active==='open'));
+  wrap.appendChild(mk('All','/all', active==='all'));
+  wrap.appendChild(mk('🏆','/leaderboard', active==='leaderboard'));
+  return wrap;
+}
+
+/* ── Back link ── */
+function backLink(href, text) {
+  const a = A('#'+href, 'btn btn-ghost btn-sm', '← '+text);
+  a.onclick = e => { navigate(href); return false; };
+  return a;
+}
+
+/* ── Empty state ── */
+function emptyState(title, body) {
+  return DIV('empty', E('strong','',title), body);
+}
 
 /* ================================================================
    Views
    ================================================================ */
-function renderHeader() {
-  const header = document.querySelector('header .inner');
-  header.innerHTML = '';
-  const left = $m('a', 'logo');
-  left.href = '#/'; left.onclick = (e) => { if (e.button===0) { location.hash='/'; return false; }};
-  left.innerHTML = svgLogo() + '<div class=text><div class=big>my two sats</div><small>community bounty board</small></div>';
-  header.appendChild(left);
-
-  const right = $m('div','');
-  if (inFedi()) {
-    right.innerHTML = `
-      <div class="me">
-        <div class="name">${esc(MENAME || short(ME))}</div>
-        <div class="id">${short(ME)}</div>
-      </div>`;
-  } else {
-    // community badge header
-    const badge = $m('div','community-badge'); badge.textContent = communityLabel(COMMUNITY);
-    const change = $m('a',''); change.href='#'; change.textContent='change'; change.style='font-size:11px;margin-left:8px;color:var(--ink-ghost)';
-    change.onclick = (e) => { e.preventDefault(); localStorage.removeItem('m2s_community'); COMMUNITY=null; const u=new URL(location.href); u.searchParams.delete('community'); history.replaceState(null,'',u.toString()); route(); };
-    badge.appendChild(change);
-    right.appendChild(badge);
-  }
-  header.appendChild(right);
-}
-
-function buildTabs(active) {
-  const tabs = $m('div','tabs');
-  const mk = (label, href, isActive) => {
-    const a = $m('a','tab' + (isActive ? ' active' : ''));
-    a.href = '#' + href; a.textContent = label;
-    return a;
-  };
-  tabs.appendChild(mk('Open', '/open', active==='open'));
-  tabs.appendChild(mk('All', '/all', active==='all'));
-  tabs.appendChild(mk('🏆', '/leaderboard', active==='leaderboard'));
-  return tabs;
-}
-
-function backLink(href, label) {
-  return `<a class="ghost" style="display:inline-flex;gap:5px;align-items:center;margin-bottom:10px" href="#${href}">${label}</a>`;
-}
-
-function emptyState(lines) {
-  const d = $m('div','empty');
-  d.innerHTML = lines.map(l => `<div${l.bold ? ' style="font-weight:700;color:var(--ink)"' : ''}>${l.txt}</div>`).join('');
-  return d;
-}
 
 /* ---- Home ---- */
-async function renderHome(filterStatus) {
-  app.clear();
+async function renderHome(statusFilter) {
+  const root = appEl();
+  root.innerHTML = '';
   renderHeader();
 
-  const intro = $m('div','intro');
-  intro.innerHTML = `
-    <h1>Your neighbour needs something done. You need a few sats.</h1>
-    <p>This is where both of those things meet.</p>`;
-  app.append(intro);
+  const hero = DIV('hero section', E('h1','','Your neighbour needs something done.'), E('p','','You need a few sats.'));
+  root.appendChild(hero);
+  root.appendChild(makeTabs(statusFilter==='open'?'open':'all'));
 
-  app.append(buildTabs(filterStatus || 'open'));
-
-  const loading = $m('div','empty'); loading.textContent = 'Loading…';
-  app.append(loading);
-
+  let list;
   try {
-    const { bounties } = await api('/bounties' + (filterStatus ? `?status=${filterStatus}` : ''));
-    loading.remove();
+    const qs = statusFilter ? `?status=${statusFilter}` : '';
+    const {bounties} = await api('/bounties'+qs);
 
+    list = DIV('');
     if (!bounties.length) {
-      app.append(emptyState([
-        { txt: 'Nothing here yet.', bold: true },
-        { txt: 'Post the first request in your community.' }
-      ]));
+      list.appendChild(emptyState('Nothing here yet.', 'Be the first to post a need in '+communityName(COMMUNITY)));
     } else {
-      bounties.forEach(b => app.append(makeCard(b)));
+      bounties.forEach(b => list.appendChild(makeCard(b)));
     }
-  } catch (e) {
-    loading.remove();
-    toast(e.message, true);
+  } catch(e) {
+    list = DIV(''); list.appendChild(emptyState('Could not load.', e.message));
   }
+  root.appendChild(list);
 
-  const fab = $m('button','fab'); fab.textContent = '+ Post a need';
-  fab.onclick = () => { location.hash = '/new'; };
-  app.append(fab);
+  const fab = BTN('fab', '+ Post a need', ()=>navigate('/new'));
+  root.appendChild(fab);
 }
 
 function makeCard(b) {
-  const el = $m('a','card click');
-  el.href = `#/b/${b.id}`;
-  el.dataset.id = b.id;
-  const c = CATS[b.category] || CATS.other;
-  const pct = b.threshold_sats > 0 ? Math.min(100, Math.round(b.pot_sats / b.threshold_sats * 100)) : 0;
-  const hasEff = b.effective_pot_sats !== b.pot_sats;
+  const c = {cleanup:'tag-cleanup',painting:'tag-paint',repair:'tag-repair',other:'tag-other'}[b.category]||'tag-other';
+  const lbl = {cleanup:'🧹 Cleanup',painting:'🎨 Painting',repair:'🔧 Repair',other:'📝 Other'}[b.category]||'Other';
+  const pct = b.threshold_sats>0 ? Math.min(100, Math.round(b.pot_sats/b.threshold_sats*100)) : 0;
 
-  const statusWord = STATUS_WORDS[b.status] || b.status;
-  const statusCls  = `status ${b.status}`;
+  const el = A('#/b/'+b.id, 'card card-interactive');
+  el.onclick = e => { navigate('/b/'+b.id); return false; };
 
-  el.innerHTML = `
-    <div class="row" style="margin-bottom:4px">
-      <span class="cat ${c.cls}">${c.icon} ${c.label}</span>
-      <span class="${statusCls}">${statusWord}</span>
-    </div>
-    <div class="bounty-title">${esc(b.title)}</div>
-    <div class="desc">${esc(b.description)}</div>
-    <div class="row" style="align-items:flex-end;margin-top:8px">
-      <div class="pot">
-        <span class="n">${fmtNum(b.pot_sats)}</span> <span class="u">sats pledged</span>
-        ${hasEff ? `<br><span class="eff">~${fmtNum(b.effective_pot_sats)} trusted pot</span>` : ''}
-      </div>
-      ${b.pledges.length ? `<span class="subtext">${b.pledges.length} pledge${b.pledges.length!==1?'s':''}</span>` : ''}
-    </div>
-    ${b.threshold_sats>0 ? `<div class="bar"><span style="width:${pct}%"></span></div>
-      <div class="subtext" style="margin-top:2px">${pct}% of ${fmtSats(b.threshold_sats)} needed</div>` : ''}`;
+  const top = DIV('row-btw',
+    E('span','tag '+c, esc(lbl)),
+    E('span','tag-status tag-'+b.status, esc({open:'Open',claimed:'Claimed',proof_submitted:'Proof sent',settled:'Done',cancelled:'Cancelled',expired:'Expired'}[b.status]||b.status))
+  );
+
+  el.appendChild(top);
+  el.appendChild(E('div','bounty-title', esc(b.title)));
+  el.appendChild(E('div','bounty-desc', esc(b.description)));
+
+  const meta = DIV('row-btw',
+    DIV('amount',
+      E('div','', E('span','val',fmtNum(b.pot_sats)), ' ', E('span','unit','sats pledged')),
+      b.effective_pot_sats!==b.pot_sats ? E('div','sub','~'+fmtNum(b.effective_pot_sats)+' trusted') : null
+    ),
+    E('span','bounty-meta', b.pledges.length+' pledge'+(b.pledges.length!==1?'s':''))
+  );
+  el.appendChild(meta);
+
+  if (b.threshold_sats>0) {
+    el.appendChild(DIV('progress', E('div','', {style:`width:${pct}%`})));
+    el.appendChild(E('div','bounty-meta', pct+'% of '+fmtSats(b.threshold_sats)+' needed'));
+  }
+
   return el;
 }
 
 /* ---- New ---- */
 function renderNew() {
-  app.clear(); renderHeader();
-  const w = app.el();
-  w.appendChild($m('div','',backLink('/open', '← Open needs')));
+  const root = appEl();
+  root.innerHTML = '';
+  renderHeader();
 
-  const h = $m('h1',''); h.style='margin-top:10px'; h.textContent = 'What needs doing?';
-  w.appendChild(h);
-  const sub = $m('p','desc'); sub.textContent = "Describe the job like you're telling a friend.";
-  w.appendChild(sub);
+  root.appendChild(DIV('section', backLink('/open','Open needs')));
+  root.appendChild(DIV('hero', E('h1','page-title','What needs doing?'), E('p','lede','Describe it like you\'re telling a neighbour.')));
 
-  const card = $m('div','card'); card.style='margin-top:14px';
-  card.innerHTML = `
-    <label>What is it?</label>
-    <input id="f-title" placeholder="e.g. Clean up the lot behind the rec centre" maxlength="200" autocomplete="off" />
-    <label>Tell the story</label>
-    <textarea id="f-desc" placeholder="What's the situation? What does 'done' look like?"></textarea>
-    <label>Category</label>
-    <select id="f-cat">
-      <option value="cleanup">🧹 Cleanup</option>
-      <option value="painting">🎨 Painting</option>
-      <option value="repair">🔧 Repair</option>
-      <option value="other">📝 Something else</option>
-    </select>
-    <label>Minimum pot to get started (sats, optional)</label>
-    <input id="f-thresh" type="number" inputmode="numeric" placeholder="0 = anyone can claim right away" />
-    <button id="f-submit" style="margin-top:16px">Post it</button>`;
-  w.appendChild(card);
+  const card = DIV('card');
+  card.appendChild(E('label','field-label','What is it?'));
+  const fTitle = E('input',''); fTitle.placeholder='e.g. Clean up the lot behind the rec centre'; fTitle.maxLength=200; fTitle.autocomplete='off'; card.appendChild(fTitle);
 
-  $('f-submit').onclick = async () => {
-    const btn = $('f-submit'); btn.disabled = true;
+  card.appendChild(E('label','field-label','Tell the story'));
+  const fDesc = E('textarea',''); fDesc.placeholder="What's the situation? What does 'done' look like?"; card.appendChild(fDesc);
+
+  card.appendChild(E('label','field-label','Category'));
+  const fCat = E('select','');
+  [['cleanup','🧹 Cleanup'],['painting','🎨 Painting'],['repair','🔧 Repair'],['other','📝 Other']].forEach(([v,l])=>{
+    const o=document.createElement('option'); o.value=v; o.textContent=l; fCat.appendChild(o);
+  });
+  card.appendChild(fCat);
+
+  card.appendChild(E('label','field-label','Minimum pot to start (optional)'));
+  const fThresh = E('input',''); fThresh.type='number'; fThresh.placeholder='0 = anyone can claim right away'; card.appendChild(fThresh);
+
+  const submit = BTN('btn','Post it', async () => {
+    submit.disabled = true;
     try {
       const body = {
-        title: $('f-title').value.trim(), description: $('f-desc').value.trim(),
-        category: $('f-cat').value, threshold_sats: parseInt($('f-thresh').value) || 0,
+        title: fTitle.value.trim(), description: fDesc.value.trim(),
+        category: fCat.value, threshold_sats: parseInt(fThresh.value)||0,
         creator_pubkey: ME, display_name: MENAME, community_id: COMMUNITY,
       };
-      if (!body.title || !body.description) throw new Error('Need a title and a story.');
-      const { bounty } = await api('/bounties', { method: 'POST', body });
-      toast('Posted. Now watch the sats roll in.');
-      location.hash = '/b/' + bounty.id;
-    } catch (e) { toast(e.message, true); btn.disabled = false; }
-  };
+      if (!body.title || !body.description) throw new Error('Need a title and story.');
+      const {bounty} = await api('/bounties', {method:'POST', body});
+      toast('Posted.'); navigate('/b/'+bounty.id);
+    } catch(e){ toast(e.message,true); submit.disabled=false; }
+  });
+  card.appendChild(DIV('', {style:'margin-top:18px'}, submit));
+  root.appendChild(card);
 }
 
 /* ---- Detail ---- */
 async function renderDetail(id) {
-  app.clear(); renderHeader();
-  const w = app.el();
+  const root = appEl();
+  root.innerHTML = '';
+  renderHeader();
+  root.appendChild(DIV('section', backLink('/open','Open needs')));
 
   let b;
-  try {
-    ({ bounty: b } = await api('/bounties/' + id));
-  } catch {
-    w.innerHTML = backLink('/open', '← All needs') + '<div class="empty">That bounty doesn’t seem to exist in this community.</div>';
-    return;
+  try { ({bounty:b} = await api('/bounties/'+id)); }
+  catch { root.appendChild(emptyState('Not found','That bounty doesn\'t exist in this community.')); return; }
+
+  const myPledge = b.pledges.find(p=>p.pledger_pubkey===ME);
+  const isWorker = b.worker_pubkey===ME;
+  const pct = b.threshold_sats>0 ? Math.min(100, Math.round(b.pot_sats/b.threshold_sats*100)) : 0;
+
+  // Title + cat
+  const cCls = {cleanup:'tag-cleanup',painting:'tag-paint',repair:'tag-repair',other:'tag-other'}[b.category]||'tag-other';
+  const cLbl={cleanup:'🧹 Cleanup',painting:'🎨 Painting',repair:'🔧 Repair',other:'📝 Other'}[b.category]||'Other';
+  root.appendChild(E('span','tag '+cCls, cLbl));
+  root.appendChild(E('h1','page-title', {style:'margin-top:10px'}, esc(b.title)));
+
+  // Description card
+  root.appendChild(DIV('card', E('div','',{style:'font-size:15px;line-height:1.6'}, esc(b.description))));
+
+  // Pot card
+  const pot = DIV('card');
+  pot.appendChild(DIV('row-btw',
+    DIV('amount', E('div','', E('span','val',fmtNum(b.pot_sats)), ' ', E('span','unit','sats'))),
+    E('span','tag-status tag-'+b.status, esc({open:'Open',claimed:'Claimed',proof_submitted:'Proof sent',settled:'Done',cancelled:'Cancelled',expired:'Expired'}[b.status]||b.status))
+  ));
+  if (b.effective_pot_sats!==b.pot_sats)
+    pot.appendChild(E('div','',{style:'margin-top:6px;font-size:13px;color:var(--ink-muted)'}, '~'+fmtNum(b.effective_pot_sats)+' trusted pot'));
+  if (b.threshold_sats>0) {
+    pot.appendChild(DIV('progress', E('div','',{style:`width:${pct}%`})));
+    pot.appendChild(E('div','bounty-meta', pct+'% of '+fmtSats(b.threshold_sats)+' needed'));
   }
-
-  const myPledge = b.pledges.find(p => p.pledger_pubkey === ME);
-  const isWorker = b.worker_pubkey === ME;
-  const pct = b.threshold_sats > 0 ? Math.min(100, Math.round(b.pot_sats / b.threshold_sats * 100)) : 0;
-  const c = CATS[b.category] || CATS.other;
-
-  w.appendChild($m('div','',backLink('/open', '← All needs')));
-  w.innerHTML += `<div style="margin-top:14px"><span class="cat ${c.cls}">${c.icon} ${c.label}</span></div>`;
-  w.innerHTML += `<h1 style="margin-top:8px">${esc(b.title)}</h1>`;
-
-  const descCard = $m('div','card');
-  descCard.innerHTML = `<div class="desc" style="color:var(--ink);font-size:15px;margin:0">${esc(b.description)}</div>`;
-  w.appendChild(descCard);
-
-  const potCard = $m('div','card');
-  let potHtml = `<div class="row"><div><div class="n">${fmtNum(b.pot_sats)}</div><div class="u">sats pledged</div></div><span class="status ${b.status}">${STATUS_WORDS[b.status]}</span></div>`;
-  if (b.effective_pot_sats !== b.pot_sats) potHtml += `<div class="eff" style="margin-top:4px">~${fmtNum(b.effective_pot_sats)} after trust weighting</div>`;
-  if (b.threshold_sats > 0) potHtml += `<div class="bar"><span style="width:${pct}%"></span></div><div class="subtext">${pct}% of ${fmtSats(b.threshold_sats)} needed</div>`;
-
+  // Pledge list
   if (b.pledges.length) {
-    potHtml += `<div class="pledge-list">`;
-    for (const p of b.pledges) {
-      const paid = p.status === 'paid';
-      potHtml += `<div class="pledge-row"><span><span class="${paid?'paid':''}">${paid?'Paid':'Pledged'}</span> <span class="pk">${short(p.pledger_pubkey)}</span></span><span>${fmtSats(p.amount_sats)}</span></div>`;
-    }
-    potHtml += `</div>`;
-  } else {
-    potHtml += `<div style="margin-top:8px" class="subtext">No pledges yet. You could be the first.</div>`;
+    const pl = DIV('pledge-list');
+    b.pledges.forEach(p=>{
+      pl.appendChild(DIV('pledge-entry',
+        DIV('who', p.status==='paid'?E('span','badge-paid','paid'):null, E('span','addr',short(p.pledger_pubkey))),
+        E('span','amt', fmtSats(p.amount_sats))
+      ));
+    });
+    pot.appendChild(pl);
   }
-  potCard.innerHTML = potHtml;
-  w.appendChild(potCard);
+  root.appendChild(pot);
 
   // Actions
-  if (b.status === 'open') {
-    const pledgeCard = $m('div','card'); pledgeCard.style='border-color:rgba(255,141,26,.25)';
-    pledgeCard.innerHTML = `
-      <label>Pledge sats</label>
-      <input id="p-amt" type="number" inputmode="numeric" placeholder="e.g. 5000" ${myPledge ? `value="${myPledge.amount_sats}"` : ''} />
-      <button id="b-pledge" style="margin-top:10px">${myPledge ? 'Update my pledge' : 'Pledge'}</button>`;
-    w.appendChild(pledgeCard);
+  if (b.status==='open') {
+    const pledgeCard = DIV('card');
+    pledgeCard.appendChild(E('div','overline','Your pledge'));
+    const pAmt = E('input',''); pAmt.type='number'; pAmt.placeholder='e.g. 5000'; if (myPledge) pAmt.value=myPledge.amount_sats;
+    pledgeCard.appendChild(pAmt);
+    const pBtn = BTN('btn', myPledge?'Update pledge':'Pledge', async ()=>{
+      const amt=parseInt(pAmt.value); if (!amt||amt<1) return toast('Enter an amount',true);
+      const sig=await signAction('Pledge',{kind:'m2s-pledge',bounty:b.id});
+      await api(`/bounties/${id}/pledge`,{method:'POST',body:{pledger_pubkey:ME,display_name:MENAME,amount_sats:amt,community_id:COMMUNITY,...sig}});
+      toast('Pledged.'); renderDetail(id);
+    });
+    pledgeCard.appendChild(DIV('',{style:'margin-top:12px'}, pBtn));
+    root.appendChild(pledgeCard);
 
     if (!isWorker && !myPledge) {
-      const cla = $m('button','ghost');
-      cla.id = 'b-claim';
-      cla.textContent = b.pot_sats >= b.threshold_sats ? "🙋 I'll do this" : `Need ${fmtSats(Math.max(0, b.threshold_sats - b.pot_sats))} more to claim`;
-      w.appendChild(cla);
-    }
-  } else if (b.status === 'claimed') {
-    if (isWorker) {
-      const pCard = $m('div','card');
-      pCard.innerHTML = `
-        <div style="font-weight:700;margin-bottom:10px">You claimed this on ${new Date(b.claimed_at*1000).toLocaleDateString()}. Show them what you did.</div>
-        <label>Photo of the finished work</label>
-        <input id="p-img" type="file" accept="image/*" />
-        <label>A quick note (optional)</label>
-        <textarea id="p-note" placeholder="What did you do?"></textarea>
-        <label>Your Lightning invoice</label>
-        <input id="p-inv" placeholder="lnbc1p... (your wallet will make this)" />
-        <button id="b-proof" style="margin-top:10px">I'm done — submit proof</button>`;
-      w.appendChild(pCard);
-    } else {
-      w.appendChild($m('div','card', `<div style="font-size:14px;color:var(--ink-faint)">${short(b.worker_pubkey)} is on it. Waiting for proof.</div>`));
-    }
-  } else if (b.status === 'proof_submitted') {
-    if (b.proof_image || b.proof_note) {
-      const prCard = $m('div','card');
-      let prHtml = `<div style="font-weight:700;font-size:16px;margin-bottom:8px">Proof of work</div>`;
-      if (b.proof_note) prHtml += `<div class="desc" style="margin:0 0 10px">${esc(b.proof_note)}</div>`;
-      if (b.proof_image) prHtml += `<img src="${b.proof_image}" style="width:100%;border-radius:12px;display:block;" alt="proof" />`;
-      prCard.innerHTML = prHtml;
-      w.appendChild(prCard);
-    }
-    if (myPledge && myPledge.status === 'pledged') {
-      const payCard = $m('div','card');
-      payCard.innerHTML = `
-        <div style="font-weight:700;color:var(--moss);margin-bottom:8px">Ready to pay?</div>
-        <div style="font-size:14px;color:var(--ink-faint);margin-bottom:12px">You pledged ${fmtSats(myPledge.amount_sats)}. The work is done — honour it and your trust score grows.</div>
-        <div class="split"><button id="b-pay">Pay ${fmtSats(myPledge.amount_sats)}</button><button class="ghost" id="b-flag">Flag as bad</button></div>`;
-      w.appendChild(payCard);
-    } else if (myPledge && myPledge.status === 'paid') {
-      w.appendChild($m('div','card', `<div style="font-size:14px;color:var(--ink-faint)">Paid. Your word is your bond.</div>`));
-    }
-    if (b.creator_pubkey === ME) {
-      const settleBtn = $m('button','ghost');
-      settleBtn.id='b-settle';
-      settleBtn.style='margin-top:8px';
-      settleBtn.textContent='Close bounty (mark unpaid pledges as reneged)';
-      w.appendChild(settleBtn);
+      const canClaim = b.threshold_sats===0 || b.pot_sats>=b.threshold_sats;
+      root.appendChild(BTN('btn btn-ghost', canClaim?"🙋 I'll do this":`Need ${fmtSats(Math.max(0,b.threshold_sats-b.pot_sats))} more`, async ()=>{
+        if (!canClaim) return;
+        const sig=await signAction('Claim',{kind:'m2s-claim',bounty:b.id});
+        await api(`/bounties/${id}/claim`,{method:'POST',body:{worker_pubkey:ME,display_name:MENAME,community_id:COMMUNITY,...sig}});
+        toast('Claimed. Go build.'); renderDetail(id);
+      }));
     }
   }
 
-  // Wire
-  wire('b-pledge', async () => {
-    const amt = parseInt($('p-amt').value);
-    if (!amt || amt<1) return toast('Enter a real amount',true);
-    const sig = await signAction(`I pledge ${amt} sats to: ${b.title}`, [['t','m2s-pledge'],['e',b.id]]);
-    await api(`/bounties/${id}/pledge`, { method:'POST', body:{
-      pledger_pubkey:ME, display_name:MENAME, amount_sats:amt,
-      community_id: COMMUNITY, ...sig } });
-    toast('Pledged. Thank you for backing your neighbour.'); renderDetail(id);
-  });
+  if (b.status==='claimed' && isWorker) {
+    const pf = DIV('card');
+    pf.appendChild(E('div','overline','Submit proof'));
+    const pImg = E('input',''); pImg.type='file'; pImg.accept='image/*';
+    pf.appendChild(pImg);
+    pf.appendChild(E('label','field-label','Note (optional)'));
+    const pNote = E('textarea',''); pNote.placeholder='What did you do?'; pf.appendChild(pNote);
+    pf.appendChild(E('label','field-label','Lightning invoice'));
+    const pInv = E('input',''); pInv.placeholder='Your wallet makes this'; pf.appendChild(pInv);
+    pf.appendChild(DIV('',{style:'margin-top:14px'},
+      BTN('btn','Submit proof', async ()=>{
+        let b64=null; if (pImg.files[0]) b64=await readFile(pImg.files[0]);
+        await api(`/bounties/${id}/proof`,{method:'POST',body:{image_base64:b64,proof_note:pNote.value.trim(),worker_invoice:pInv.value.trim(),community_id:COMMUNITY}});
+        toast('Proof sent.'); renderDetail(id);
+      })
+    ));
+    root.appendChild(pf);
+  }
 
-  wire('b-claim', async () => {
-    const sig = await signAction(`I claim the task: ${b.title}`, [['t','m2s-claim'],['e',b.id]]);
-    await api(`/bounties/${id}/claim`, { method:'POST', body:{
-      worker_pubkey:ME, display_name:MENAME, community_id: COMMUNITY, ...sig } });
-    toast('Claimed. Go make it happen.'); renderDetail(id);
-  });
-
-  wire('b-proof', async () => {
-    const file = $('p-img').files[0];
-    let image_base64 = null;
-    if (file) { image_base64 = await fileToB64(file); }
-    await api(`/bounties/${id}/proof`, { method:'POST', body:{
-      image_base64, proof_note:$('p-note').value.trim(), worker_invoice:$('p-inv').value.trim(),
-      community_id: COMMUNITY }});
-    toast('Proof submitted. Pledgers, your turn.'); renderDetail(id);
-  });
-
-  wire('b-pay', async () => {
-    try {
-      if (!b.worker_invoice) return toast("Worker hasn't shared an invoice yet. Check back.", true);
-      const preimage = await payInvoice(b.worker_invoice);
-      await api(`/pledges/${myPledge.id}/pay`, { method:'POST', body:{preimage} });
-      toast('Paid. Building trust.'); renderDetail(id);
-    } catch(e){ toast(e.message,true); }
-  });
-
-  wire('b-flag', async () => {
-    await api(`/bounties/${id}/flag`, { method:'POST', body:{flagger_pubkey:ME, target_pubkey:b.worker_pubkey, reason:'bad work'} });
-    toast('Flagged. Community keeps score.'); renderDetail(id);
-  });
-
-  wire('b-settle', async () => {
-    await api(`/bounties/${id}/settle`, { method:'POST', body:{community_id: COMMUNITY} });
-    toast('Settled.'); renderDetail(id);
-  });
+  if (b.status==='proof_submitted') {
+    if (b.proof_image || b.proof_note) {
+      const pr = DIV('card');
+      pr.appendChild(E('div','overline','Proof of work'));
+      if (b.proof_note) pr.appendChild(E('div','',{style:'margin-bottom:12px'}, esc(b.proof_note)));
+      if (b.proof_image) { const img=E('img',''); img.src=b.proof_image; img.style='border-radius:10px;width:100%;'; pr.appendChild(img); }
+      root.appendChild(pr);
+    }
+    if (myPledge && myPledge.status==='pledged') {
+      const pay = DIV('card');
+      pay.appendChild(E('div','overline','Your turn'));
+      pay.appendChild(E('div','',{style:'margin-bottom:14px;font-size:14px;color:var(--ink-dim)'}, `You pledged ${fmtSats(myPledge.amount_sats)}. The work is done.`));
+      pay.appendChild(DIV('row',
+        BTN('btn','Pay '+fmtSats(myPledge.amount_sats), async ()=>{
+          if (!b.worker_invoice) return toast('No invoice yet.',true);
+          const preimage = await payInvoice(b.worker_invoice);
+          await api(`/pledges/${myPledge.id}/pay`,{method:'POST',body:{preimage}});
+          toast('Paid.'); renderDetail(id);
+        }),
+        BTN('btn btn-ghost','Flag', async ()=>{
+          await api(`/bounties/${id}/flag`,{method:'POST',body:{flagger_pubkey:ME,target_pubkey:b.worker_pubkey,reason:'bad work'}});
+          toast('Flagged.'); renderDetail(id);
+        })
+      ));
+      root.appendChild(pay);
+    }
+    if (b.creator_pubkey===ME) {
+      root.appendChild(BTN('btn btn-ghost','Close bounty', async ()=>{
+        await api(`/bounties/${id}/settle`,{method:'POST',body:{community_id:COMMUNITY}});
+        toast('Settled.'); renderDetail(id);
+      }));
+    }
+  }
 }
 
-function wire(id, fn) {
-  const el = $(id); if (!el) return;
-  el.onclick = async () => { el.disabled = true; try{ await fn(); } catch(e){ toast(e.message,true); } if ($(id)) el.disabled=false; };
+function readFile(file) {
+  return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); });
 }
-function fileToB64(file) { return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); }); }
 
 /* ---- Leaderboard ---- */
 async function renderLeaderboard() {
-  app.clear(); renderHeader();
-  const w = app.el();
-  w.appendChild($m('div','',backLink('/open', '← Open needs')));
-  w.innerHTML += `<h1 style="margin-top:14px">Community heroes</h1><p class="desc">The people who show up — and the people who pay up.</p>`;
+  const root = appEl();
+  root.innerHTML = '';
+  renderHeader();
+  root.appendChild(DIV('section', backLink('/open','Open needs')));
+  root.appendChild(E('h1','page-title','Community heroes'));
+  root.appendChild(E('p','lede','The people who show up — and the people who pay up.'));
 
   try {
     const lb = await api('/leaderboards');
-    const card = $m('div','card');
-    let html = `<div style="font-weight:700;font-size:16px;margin-bottom:10px">💪 Hardest workers</div>`;
-    if (!lb.topWorkers.length) html += `<div class="subtext" style="padding:10px 0">No completed jobs yet. Could be you.</div>`;
-    else html += lb.topWorkers.map((w,i) => `<div class="lb-row"><span><b>#${i+1}</b> <span class="pk">${short(w.pubkey)}</span></span><span style="font-weight:700;color:var(--moss)">${w.jobs} done</span></div>`).join('');
-    html += `<div style="border-top:1px solid var(--border);margin:16px 0 10px"></div>`;
-    html += `<div style="font-weight:700;font-size:16px;margin-bottom:10px">🤝 Most generous funders</div>`;
-    if (!lb.topFunders.length) html += `<div class="subtext" style="padding:10px 0">No payments yet. Be the first.</div>`;
-    else html += lb.topFunders.map((f,i) => `<div class="lb-row"><span><b>#${i+1}</b> <span class="pk">${short(f.pubkey)}</span></span><span style="font-weight:700;color:var(--accent)">${fmtSats(f.sats)}</span></div>`).join('');
-    card.innerHTML = html;
-    w.appendChild(card);
-  } catch (e) { toast(e.message,true); }
+    root.appendChild(E('div','overline','Hardest workers'));
+    if (!lb.topWorkers.length) root.appendChild(DIV('card card-flat', emptyState('No jobs done yet.','Be the first.')));
+    else lb.topWorkers.forEach((w,i)=>root.appendChild(rankRow(i+1, short(w.pubkey), w.jobs+' done', i===0?'gold':'')));
+
+    root.appendChild(E('div','overline',{style:'margin-top:20px'},'Most generous'));
+    if (!lb.topFunders.length) root.appendChild(DIV('card card-flat', emptyState('No payments yet.','Back someone\'s work.')));
+    else lb.topFunders.forEach((f,i)=>root.appendChild(rankRow(i+1, short(f.pubkey), fmtSats(f.sats), i===0?'gold':'')));
+  } catch(e){ root.appendChild(emptyState('Error',e.message)); }
+}
+
+function rankRow(pos, addr, right, cls='') {
+  return DIV('rank', E('span','num '+cls, '#'+pos), E('span','addr truncate', addr), E('span','right', right));
 }
 
 /* ---- Community picker ---- */
-async function renderCommunityPicker() {
-  app.clear();
+async function renderPicker() {
+  const root = appEl();
+  root.innerHTML = '';
   await loadCommunities();
-  const w = app.el();
-  const card = $m('div','card');
-  card.innerHTML = `
-    <h1 style="margin-bottom:8px">Pick your community</h1>
-    <p class="desc" style="margin-bottom:20px">Each community has its own bounties and leaderboard.</p>`;
+
+  root.appendChild(E('h1','page-title',{style:'margin-bottom:6px'},'Join a community'));
+  root.appendChild(E('p','lede','Each community has its own bounties and leaderboard.'));
 
   if (ALL_COMMUNITIES.length) {
-    ALL_COMMUNITIES.forEach(c => {
-      const b = $m('a','card click');
-      b.href = '#';
-      b.innerHTML = `<div style="font-weight:700">${esc(c.name)}</div><div class="subtext">${c.region || c.id}</div>`;
-      b.onclick = (e) => { e.preventDefault(); saveCommunity(c.id); setURLCommunity(c.id); route(); };
-      card.appendChild(b);
+    ALL_COMMUNITIES.forEach(c=>{
+      const el = A('#','card card-interactive');
+      el.appendChild(E('div','',{style:'font-weight:700;font-size:16px'}, esc(c.name)));
+      el.appendChild(E('div','',{style:'font-size:13px;color:var(--ink-muted);margin-top:2px'}, esc(c.region || c.id)));
+      el.onclick = e => { e.preventDefault(); setCommunity(c.id); navigate('/'); };
+      root.appendChild(el);
     });
-  } else {
-    card.innerHTML += `<div class="subtext" style="margin:10px 0">No communities yet. Start one.</div>`;
   }
 
-  // Create form
-  const create = $m('div','card'); create.style='margin-top:16px';
-  create.innerHTML = `
-    <div style="font-weight:700;margin-bottom:8px">Start a new community</div>
-    <label>URL-friendly ID (e.g. bitcoin-ekasi)</label>
-    <input id="c-id" placeholder="mytown" maxlength="40" />
-    <label>Community name</label>
-    <input id="c-name" placeholder="Mytown Bitcoin Crew" maxlength="60" />
-    <label>Description (optional)</label>
-    <input id="c-desc" placeholder="What makes this community unique?" maxlength="200" />
-    <button id="c-submit" style="margin-top:12px">Create community</button>`;
-  card.appendChild(create);
-  w.appendChild(card);
+  const create = DIV('card');
+  create.appendChild(E('div','overline','Start a new community'));
+  const cId = E('input',''); cId.placeholder='URL-friendly ID, e.g. bitcoin-ekasi'; create.appendChild(cId);
+  create.appendChild(E('label','field-label','Name'));
+  const cName = E('input',''); cName.placeholder='Mytown Bitcoin Crew'; create.appendChild(cName);
+  create.appendChild(E('label','field-label','Region (optional)'));
+  const cReg = E('input',''); cReg.placeholder='Mossel Bay, South Africa'; create.appendChild(cReg);
+  create.appendChild(E('label','field-label','Description'));
+  const cDesc = E('textarea',''); cDesc.placeholder='What makes this community unique?'; create.appendChild(cDesc);
 
-  $('c-submit').onclick = async () => {
-    const btn = $('c-submit'); btn.disabled = true;
-    try {
-      const body = {
-        id: $('c-id').value.trim().toLowerCase(),
-        name: $('c-name').value.trim(),
-        description: $('c-desc').value.trim() || null,
-        admin_pubkey: ME,
-        admin_display_name: MENAME,
-      };
-      if (!body.id || !body.name) throw new Error('Need an ID and a name.');
-      const { community } = await api('/communities', { method: 'POST', body });
-      saveCommunity(community.id);
-      setURLCommunity(community.id);
-      toast(`Community "${community.name}" created.`);
-      route();
-    } catch (e) { toast(e.message, true); btn.disabled = false; }
-  };
+  create.appendChild(DIV('',{style:'margin-top:14px'},
+    BTN('btn','Create', async ()=>{
+      const body={id:cId.value.trim().toLowerCase(),name:cName.value.trim(),region:cReg.value.trim()||null,description:cDesc.value.trim()||null,admin_pubkey:ME,admin_display_name:MENAME};
+      if (!body.id||!body.name) return toast('Need ID and name',true);
+      const {community} = await api('/communities',{method:'POST',body});
+      setCommunity(community.id); toast('Created.'); navigate('/');
+    })
+  ));
+  root.appendChild(create);
 }
 
-/* ================================================================
-   Boot
-   ================================================================ */
+/* ── Boot ── */
 (async function boot() {
   resolveCommunity();
-  await loadCommunities();
-
-  // If no community param and no localStorage, show picker
-  const hadExplicit = new URLSearchParams(location.search).has('community') || localStorage.getItem('m2s_community');
-  if (!hadExplicit || !COMMUNITY) { renderCommunityPicker(); return; }
-
+  if (!COMMUNITY && !localStorage.getItem('m2s_community') && !new URLSearchParams(location.search).has('community')) {
+    renderPicker(); return;
+  }
   try {
     ME = await getPubkey();
     MENAME = await getDisplayName();
-    const { trust } = await api('/users/' + ME);
-    ME_TRUST = trust;
-  } catch {
-    // guest / dev mode
-  }
+  } catch {}
   if (!inFedi()) {
-    const ban = $m('div','dev-banner');
-    ban.textContent = 'Dev mode — open in the Fedi app for real Lightning and Nostr identity.';
-    app.el().parentNode.insertBefore(ban, app.el());
+    const ban = E('div','dev-banner','Dev mode — open in Fedi app for real Lightning + Nostr.');
+    document.querySelector('main').prepend(ban);
   }
   route();
 })();
