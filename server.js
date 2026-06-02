@@ -258,6 +258,30 @@ const server = createServer(async (req, res) => {
       return send(res, 200, db.leaderboards(cid));
     }
 
+    if (p === '/api/communities' && req.method === 'GET') {
+      return send(res, 200, { communities: db.listCommunities() });
+    }
+
+    if (p === '/api/communities' && req.method === 'POST') {
+      const body = await readJson(req);
+      if (!body.id || !body.name || !isPubkey(body.admin_pubkey)) {
+        return send(res, 400, { error: 'id, name, and admin_pubkey required' });
+      }
+      db.ensureUser(body.admin_pubkey, body.admin_display_name);
+      const community = db.createCommunity({
+        id: body.id, name: body.name, description: body.description,
+        region: body.region, admin_pubkey: body.admin_pubkey
+      });
+      return send(res, 201, { community });
+    }
+
+    if (p === '/api/communities/my' && req.method === 'GET') {
+      const pk = url.searchParams.get('pubkey');
+      if (!isPubkey(pk)) return send(res, 400, { error: 'pubkey required' });
+      const owned = db.listCommunities().filter(c => c.admin_pubkey === pk);
+      return send(res, 200, { communities: owned });
+    }
+
     // ── uploads & static ──
     if (p.startsWith('/uploads/')) return serveUpload(res, p.slice('/uploads/'.length));
     if (!p.startsWith('/api/')) return serveStatic(res, p, req);

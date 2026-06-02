@@ -66,6 +66,21 @@ CREATE TABLE IF NOT EXISTS pledges (
 CREATE INDEX IF NOT EXISTS idx_pledges_bounty ON pledges(bounty_id);
 CREATE INDEX IF NOT EXISTS idx_pledges_pledger ON pledges(pledger_pubkey);
 
+-- Communities: self-service community creation.
+CREATE TABLE IF NOT EXISTS communities (
+  id            TEXT PRIMARY KEY,            -- URL-safe slug (bitcoin-ekasi, mytown)
+  name          TEXT NOT NULL,               -- human-readable name
+  description   TEXT,
+  region        TEXT,                        -- optional geographic hint
+  admin_pubkey  TEXT NOT NULL,               -- creator / first admin
+  created_at    INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_communities_id ON communities(id);
+
+-- Seed default community so bounties table FK stays happy
+INSERT OR IGNORE INTO communities (id, name, description, admin_pubkey)
+  VALUES ('default', 'Sandbox', 'Default community for testing', '0000000000000000000000000000000000000000000000000000000000000000');
+
 -- Flags: pledgers flagging bad/fake work, or community flagging a bad pledger.
 CREATE TABLE IF NOT EXISTS flags (
   id            TEXT PRIMARY KEY,

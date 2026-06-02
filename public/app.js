@@ -15,17 +15,12 @@ let ME = null, MENAME = null, ME_TRUST = null;
 let COMMUNITY = null;
 
 /* ── Community ──────────────────────────────────────────────────────── */
-const PRESET_COMMUNITIES = [
-  { id: 'bitcoin-ekasi', name: 'Bitcoin Ekasi' },
-  { id: 'default', name: 'Sandbox (default)' },
-];
+let ALL_COMMUNITIES = [];
 
 function resolveCommunity() {
   const url = new URLSearchParams(location.search).get('community');
   const ls = localStorage.getItem('m2s_community');
   COMMUNITY = url || ls || null;
-  if (!COMMUNITY) COMMUNITY = 'default';
-  saveCommunity(COMMUNITY);
 }
 function saveCommunity(id) {
   COMMUNITY = id;
@@ -33,11 +28,23 @@ function saveCommunity(id) {
 }
 function communityLabel(id) {
   if (!id) return 'No community';
-  const p = PRESET_COMMUNITIES.find(c => c.id === id);
+  const p = ALL_COMMUNITIES.find(c => c.id === id);
   return p ? p.name : id.charAt(0).toUpperCase() + id.slice(1);
 }
 function communityParam() {
   return '?community=' + encodeURIComponent(COMMUNITY || 'default');
+}
+async function loadCommunities() {
+  try {
+    ALL_COMMUNITIES = (await api('/communities')).communities || [];
+  } catch { ALL_COMMUNITIES = []; }
+}
+
+/* ── URL routing ── */
+function setURLCommunity(id) {
+  const url = new URL(location.href);
+  url.searchParams.set('community', id);
+  history.replaceState(null, '', url.toString());
 }
 
 /* ── API ────────────────────────────────────────────────────────────── */
@@ -140,7 +147,7 @@ function renderHeader() {
     // community badge header
     const badge = $m('div','community-badge'); badge.textContent = communityLabel(COMMUNITY);
     const change = $m('a',''); change.href='#'; change.textContent='change'; change.style='font-size:11px;margin-left:8px;color:var(--ink-ghost)';
-    change.onclick = (e) => { e.preventDefault(); localStorage.removeItem('m2s_community'); COMMUNITY=null; route(); };
+    change.onclick = (e) => { e.preventDefault(); localStorage.removeItem('m2s_community'); COMMUNITY=null; const u=new URL(location.href); u.searchParams.delete('community'); history.replaceState(null,'',u.toString()); route(); };
     badge.appendChild(change);
     right.appendChild(badge);
   }
@@ -463,21 +470,59 @@ async function renderLeaderboard() {
 }
 
 /* ---- Community picker ---- */
-function renderCommunityPicker() {
+async function renderCommunityPicker() {
   app.clear();
+  await loadCommunities();
   const w = app.el();
   const card = $m('div','card');
   card.innerHTML = `
     <h1 style="margin-bottom:8px">Pick your community</h1>
     <p class="desc" style="margin-bottom:20px">Each community has its own bounties and leaderboard.</p>`;
-  PRESET_COMMUNITIES.forEach(c => {
-    const b = $m('a','card click');
-    b.href = '#';
-    b.innerHTML = `<div style="font-weight:700">${esc(c.name)}</div><div class="subtext">${c.id}</div>`;
-    b.onclick = (e) => { e.preventDefault(); saveCommunity(c.id); route(); };
-    card.appendChild(b);
-  });
+
+  if (ALL_COMMUNITIES.length) {
+    ALL_COMMUNITIES.forEach(c => {
+      const b = $m('a','card click');
+      b.href = '#';
+      b.innerHTML = `<div style="font-weight:700">${esc(c.name)}</div><div class="subtext">${c.region || c.id}</div>`;
+      b.onclick = (e) => { e.preventDefault(); saveCommunity(c.id); setURLCommunity(c.id); route(); };
+      card.appendChild(b);
+    });
+  } else {
+    card.innerHTML += `<div class="subtext" style="margin:10px 0">No communities yet. Start one.</div>`;
+  }
+
+  // Create form
+  const create = $m('div','card'); create.style='margin-top:16px';
+  create.innerHTML = `
+    <div style="font-weight:700;margin-bottom:8px">Start a new community</div>
+    <label>URL-friendly ID (e.g. bitcoin-ekasi)</label>
+    <input id="c-id" placeholder="mytown" maxlength="40" />
+    <label>Community name</label>
+    <input id="c-name" placeholder="Mytown Bitcoin Crew" maxlength="60" />
+    <label>Description (optional)</label>
+    <input id="c-desc" placeholder="What makes this community unique?" maxlength="200" />
+    <button id="c-submit" style="margin-top:12px">Create community</button>`;
+  card.appendChild(create);
   w.appendChild(card);
+
+  $('c-submit').onclick = async () => {
+    const btn = $('c-submit'); btn.disabled = true;
+    try {
+      const body = {
+        id: $('c-id').value.trim().toLowerCase(),
+        name: $('c-name').value.trim(),
+        description: $('c-desc').value.trim() || null,
+        admin_pubkey: ME,
+        admin_display_name: MENAME,
+      };
+      if (!body.id || !body.name) throw new Error('Need an ID and a name.');
+      const { community } = await api('/communities', { method: 'POST', body });
+      saveCommunity(community.id);
+      setURLCommunity(community.id);
+      toast(`Community "${community.name}" created.`);
+      route();
+    } catch (e) { toast(e.message, true); btn.disabled = false; }
+  };
 }
 
 /* ================================================================
@@ -485,6 +530,12 @@ function renderCommunityPicker() {
    ================================================================ */
 (async function boot() {
   resolveCommunity();
+  await loadCommunities();
+
+  // If no community param and no localStorage, show picker
+  const hadExplicit = new URLSearchParams(location.search).has('community') || localStorage.getItem('m2s_community');
+  if (!hadExplicit || !COMMUNITY) { renderCommunityPicker(); return; }
+
   try {
     ME = await getPubkey();
     MENAME = await getDisplayName();
