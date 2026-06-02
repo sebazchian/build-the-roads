@@ -1,4 +1,4 @@
-/* my two sats — UI that does not overlap */
+/* my two sats — clean, no-weird-links */
 import { getPubkey, getDisplayName, signAction, makeInvoice, payInvoice, inFedi } from './fedi.js';
 
 /* ── State ── */
@@ -16,13 +16,11 @@ function h(tag, cls, ...kids) {
     if (typeof k === 'string') e.appendChild(document.createTextNode(k));
     else if (k instanceof Node) e.appendChild(k);
     else if (typeof k === 'object' && k.style) Object.assign(e.style, k.style);
-    else if (typeof k === 'object' && k.innerHTML) e.innerHTML = k.innerHTML;
   });
   return e;
 }
 
 const DIV = (cls, ...ch) => h('div', cls, ...ch);
-const A = (href, cls, ...ch) => { const a = h('a', cls, ...ch); a.href = href; return a; };
 const BTN = (cls, txt, on) => { const b = h('button', cls, txt); if (on) b.onclick = on; return b; };
 
 /* ── Helpers ── */
@@ -38,8 +36,20 @@ function toast(msg, err) {
   setTimeout(() => t.remove(), 3000);
 }
 
-/* ── SVG logo ── */
-const B_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="11" fill="#fff"/><text x="12" y="17" text-anchor="middle" font-size="14" font-weight="800" fill="#FF9419">₿</text></svg>`;
+/* ── SVG logo (safe DOM, not innerHTML) ── */
+function makeBrandOrb() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', '16'); svg.setAttribute('height', '16');
+  svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'none');
+  const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  c.setAttribute('cx', '12'); c.setAttribute('cy', '12'); c.setAttribute('r', '11'); c.setAttribute('fill', '#fff');
+  const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  t.setAttribute('x', '12'); t.setAttribute('y', '17'); t.setAttribute('text-anchor', 'middle');
+  t.setAttribute('font-size', '14'); t.setAttribute('font-weight', '800'); t.setAttribute('fill', '#FF9419');
+  t.textContent = '₿';
+  svg.appendChild(c); svg.appendChild(t);
+  return svg;
+}
 
 /* ── API ── */
 const api = async (path, opts = {}) => {
@@ -98,10 +108,10 @@ function renderHeader() {
   const hd = $('header-inner');
   hd.innerHTML = '';
 
-  const brand = A('#/', 'brand',
-    h('span', 'orb', DIV('', { innerHTML: B_SVG })),
-    DIV('word', h('div', 'name', 'my two sats'), h('div', 'tag', 'community bounty board'))
-  );
+  const orb = h('span', 'orb');
+  orb.appendChild(makeBrandOrb());
+  const brand = h('a', 'brand', orb, DIV('word', h('div', 'name', 'my two sats'), h('div', 'tag', 'community bounty board')));
+  brand.href = '#/';
   brand.onclick = e => { if (e.button === 0) { go('/'); return false; }};
   hd.appendChild(brand);
 
@@ -111,9 +121,7 @@ function renderHeader() {
     meta.appendChild(h('div', 'down', short(ME)));
   } else if (COMMUNITY) {
     const badge = DIV('badge', cName(COMMUNITY));
-    const change = A('#', '', 'change');
-    change.style.cssText = 'margin-left:5px;font-size:10px;text-decoration:none;color:inherit;opacity:.7';
-    change.onclick = e => { e.preventDefault(); setCommunity(null); go('/'); };
+    const change = BTN('badge-change', 'change', () => { setCommunity(null); go('/'); });
     badge.appendChild(change);
     meta.appendChild(badge);
   }
@@ -124,9 +132,8 @@ function renderHeader() {
 function makeTabs(active) {
   const wrap = DIV('pill-tabs');
   const mk = (label, href, on) => {
-    const a = A('#' + href, on ? 'on' : '', label);
-    a.onclick = e => { go(href); return false; };
-    return a;
+    const b = BTN(on ? 'on' : '', label, () => go(href));
+    return b;
   };
   wrap.appendChild(mk('Open', '/open', active === 'open'));
   wrap.appendChild(mk('All', '/all', active === 'all'));
@@ -135,9 +142,7 @@ function makeTabs(active) {
 }
 
 function backLink(href, text) {
-  const a = A('#' + href, 'btn btn-ghost btn-sm', '← ' + text);
-  a.onclick = e => { go(href); return false; };
-  return a;
+  return BTN('btn btn-ghost btn-sm', '← ' + text, () => go(href));
 }
 
 function emptyState(title, body) {
@@ -154,14 +159,13 @@ async function renderHome(filter) {
   const stack = DIV('stack padded');
   stack.appendChild(DIV('', h('h1', 't1', 'Your neighbour needs something done.'), h('p', 'body', 'You need a few sats.')));
   stack.appendChild(makeTabs(filter === 'open' ? 'open' : 'all'));
-
   wrap.appendChild(stack);
 
   let list;
   try {
     const qs = filter ? `?status=${filter}` : '';
     const { bounties } = await api('/bounties' + qs);
-    list = DIV('');
+    list = DIV('stack');
     if (!bounties.length) {
       list.appendChild(emptyState('Nothing here yet.', 'Be the first to post a need.'));
     } else {
@@ -181,14 +185,13 @@ function bountyCard(b) {
   const catLbl = { cleanup: '🧹 Cleanup', painting: '🎨 Painting', repair: '🔧 Repair', other: '📝 Other' }[b.category] || 'Other';
   const pct = b.threshold_sats > 0 ? Math.min(100, Math.round(b.pot_sats / b.threshold_sats * 100)) : 0;
 
-  const card = A('#/b/' + b.id, 'card card-interactive');
-  card.onclick = e => { go('/b/' + b.id); return false; };
+  const card = DIV('card card-interactive');
+  card.onclick = () => go('/b/' + b.id);
 
   card.appendChild(DIV('b-row',
     h('span', 'tag ' + catCls, esc(catLbl)),
     h('span', 'tag-status tag-' + b.status, esc({ open: 'Open', claimed: 'Claimed', proof_submitted: 'Proof sent', settled: 'Done', cancelled: 'Cancelled', expired: 'Expired' }[b.status] || b.status))
   ));
-
   card.appendChild(h('div', 'b-title', esc(b.title)));
   card.appendChild(h('div', 'b-desc', esc(b.description)));
 
@@ -248,7 +251,6 @@ function renderNew() {
       toast('Posted.'); go('/b/' + bounty.id);
     } catch (e) { toast(e.message, true); submit.disabled = false; }
   });
-
   card.appendChild(DIV('gap-2', submit));
   w.appendChild(card);
 }
@@ -275,14 +277,17 @@ async function renderDetail(id) {
   const catCls = { cleanup: 'tag-cleanup', painting: 'tag-paint', repair: 'tag-repair', other: 'tag-other' }[b.category] || 'tag-other';
   const catLbl = { cleanup: '🧹 Cleanup', painting: '🎨 Painting', repair: '🔧 Repair', other: '📝 Other' }[b.category] || 'Other';
 
+  const bodyStack = DIV('stack');
+  w.appendChild(bodyStack);
+
   // title block
-  const titleBlock = DIV('stack-sm');
+  const titleBlock = DIV('stack-sm padded');
   titleBlock.appendChild(h('span', 'tag ' + catCls, catLbl));
   titleBlock.appendChild(h('h1', 't2', esc(b.title)));
-  w.appendChild(titleBlock);
+  bodyStack.appendChild(titleBlock);
 
   // description
-  w.appendChild(DIV('card', h('div', '', esc(b.description))));
+  bodyStack.appendChild(DIV('card', h('div', '', esc(b.description))));
 
   // pot card
   const pot = DIV('card');
@@ -306,7 +311,7 @@ async function renderDetail(id) {
     });
     pot.appendChild(pl);
   }
-  w.appendChild(pot);
+  bodyStack.appendChild(pot);
 
   // Actions — open
   if (b.status === 'open') {
@@ -322,16 +327,17 @@ async function renderDetail(id) {
       toast('Pledged.'); renderDetail(id);
     });
     pledgeCard.appendChild(DIV('gap-1', pBtn));
-    w.appendChild(pledgeCard);
+    bodyStack.appendChild(pledgeCard);
 
     if (!isWorker && !myPledge) {
       const canClaim = b.threshold_sats === 0 || b.pot_sats >= b.threshold_sats;
-      w.appendChild(BTN('btn btn-ghost', canClaim ? "🙋 I'll do this" : 'Need ' + fmtS(Math.max(0, b.threshold_sats - b.pot_sats)) + ' more', async () => {
+      const claimCard = DIV('card', BTN('btn btn-ghost', canClaim ? "🙋 I'll do this" : 'Need ' + fmtS(Math.max(0, b.threshold_sats - b.pot_sats)) + ' more', async () => {
         if (!canClaim) return;
         const sig = await signAction('Claim', { kind: 'm2s-claim', bounty: b.id });
         await api(`/bounties/${id}/claim`, { method: 'POST', body: { worker_pubkey: ME, display_name: MENAME, community_id: COMMUNITY, ...sig } });
         toast('Claimed.'); renderDetail(id);
       }));
+      bodyStack.appendChild(claimCard);
     }
   }
 
@@ -351,7 +357,7 @@ async function renderDetail(id) {
         toast('Proof sent.'); renderDetail(id);
       })
     ));
-    w.appendChild(pf);
+    bodyStack.appendChild(pf);
   }
 
   // Actions — proof submitted
@@ -361,7 +367,7 @@ async function renderDetail(id) {
       pr.appendChild(h('div', 'overline', 'Proof of work'));
       if (b.proof_note) pr.appendChild(h('div', '', esc(b.proof_note)));
       if (b.proof_image) { const img = h('img', ''); img.src = b.proof_image; style(img, { borderRadius: '8px', width: '100%', marginTop: '12px' }); pr.appendChild(img); }
-      w.appendChild(pr);
+      bodyStack.appendChild(pr);
     }
     if (myPledge && myPledge.status === 'pledged') {
       const pay = DIV('card');
@@ -379,13 +385,13 @@ async function renderDetail(id) {
           toast('Flagged.'); renderDetail(id);
         })
       ));
-      w.appendChild(pay);
+      bodyStack.appendChild(pay);
     }
     if (b.creator_pubkey === ME) {
-      w.appendChild(BTN('btn btn-ghost', 'Close bounty', async () => {
+      bodyStack.appendChild(DIV('card', BTN('btn btn-ghost', 'Close bounty', async () => {
         await api(`/bounties/${id}/settle`, { method: 'POST', body: { community_id: COMMUNITY } });
         toast('Settled.'); renderDetail(id);
-      }));
+      })));
     }
   }
 }
@@ -407,17 +413,20 @@ async function renderLeaderboard() {
   lead.appendChild(h('p', 'body', 'The people who show up — and the people who pay up.'));
   w.appendChild(lead);
 
+  const bodyStack = DIV('stack');
+  w.appendChild(bodyStack);
+
   try {
     const lb = await api('/leaderboards');
 
-    w.appendChild(h('div', 'overline overline-pad', 'Hardest workers'));
-    if (!lb.topWorkers.length) w.appendChild(emptyState('No jobs done yet.', 'Be the first.'));
-    else lb.topWorkers.forEach((r, i) => w.appendChild(rankRow(i + 1, short(r.pubkey), r.jobs + ' done', i === 0)));
+    bodyStack.appendChild(h('div', 'overline', 'Hardest workers'));
+    if (!lb.topWorkers.length) bodyStack.appendChild(emptyState('No jobs done yet.', 'Be the first.'));
+    else lb.topWorkers.forEach((r, i) => bodyStack.appendChild(rankRow(i + 1, short(r.pubkey), r.jobs + ' done', i === 0)));
 
-    w.appendChild(h('div', 'overline overline-pad', 'Most generous'));
-    if (!lb.topFunders.length) w.appendChild(emptyState('No payments yet.', 'Back someone\'s work.'));
-    else lb.topFunders.forEach((r, i) => w.appendChild(rankRow(i + 1, short(r.pubkey), fmtS(r.sats), i === 0)));
-  } catch (e) { w.appendChild(emptyState('Error', e.message)); }
+    bodyStack.appendChild(h('div', 'overline overline-pad', 'Most generous'));
+    if (!lb.topFunders.length) bodyStack.appendChild(emptyState('No payments yet.', 'Back someone\'s work.'));
+    else lb.topFunders.forEach((r, i) => bodyStack.appendChild(rankRow(i + 1, short(r.pubkey), fmtS(r.sats), i === 0)));
+  } catch (e) { bodyStack.appendChild(emptyState('Error', e.message)); }
 }
 
 function rankRow(pos, addr, right, gold) {
@@ -436,12 +445,15 @@ async function renderPicker() {
   lead.appendChild(h('p', 'body', 'Each community has its own bounties and leaderboard.'));
   w.appendChild(lead);
 
+  const bodyStack = DIV('stack');
+  w.appendChild(bodyStack);
+
   ALL_COMMUNITIES.forEach(c => {
-    const card = A('#', 'card card-interactive');
+    const card = DIV('card card-interactive');
     card.appendChild(h('div', 'b-title', esc(c.name)));
     card.appendChild(h('div', 'b-desc', esc(c.region || c.id)));
-    card.onclick = e => { e.preventDefault(); setCommunity(c.id); go('/'); };
-    w.appendChild(card);
+    card.onclick = () => { setCommunity(c.id); go('/'); };
+    bodyStack.appendChild(card);
   });
 
   const create = DIV('card');
@@ -467,7 +479,7 @@ async function renderPicker() {
       setCommunity(community.id); toast('Created.'); go('/');
     })
   ));
-  w.appendChild(create);
+  bodyStack.appendChild(create);
 }
 
 /* ── Boot ── */
