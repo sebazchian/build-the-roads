@@ -110,13 +110,14 @@ window.addEventListener('hashchange', route);
 function route() {
   const app = $('app');
   app.innerHTML = '';
-  if (!COMMUNITY) { renderPicker(); return; }
   const h = location.hash.slice(1) || '/';
+  // Allow philosophy even without community
+  if (h === '/philosophy') { renderPhilosophy(); return; }
+  if (!COMMUNITY) { renderPicker(); return; }
   if (h === '/' || h === '/open') renderHome('open');
   else if (h === '/all') renderHome(null);
   else if (h === '/new') renderNew();
   else if (h === '/leaderboard') renderLeaderboard();
-  else if (h === '/philosophy') renderPhilosophy();
   else if (h.startsWith('/b/')) renderDetail(h.slice(3));
   else renderHome('open');
 }
@@ -134,7 +135,7 @@ function renderHeader() {
   hd.appendChild(brand);
 
   const meta = DIV('header-meta');
-  if (inFedi() && ME) {
+  if (ME) {
     meta.appendChild(h('div', 'up', esc(MENAME || short(ME))));
     meta.appendChild(h('div', 'down', short(ME)));
   } else if (COMMUNITY) {
