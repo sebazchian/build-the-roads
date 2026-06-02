@@ -1,0 +1,23 @@
+[Unit]
+Description=my two sats — community bounty board (Fedi mini app)
+After=network.target
+
+[Service]
+Type=simple
+User=sebastian
+WorkingDirectory=/home/sebastian/.openclaw/workspace/mytwosats
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=3005
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/home/sebastian/.openclaw/workspace/mytwosats/db
+ReadWritePaths=/home/sebastian/.openclaw/workspace/mytwosats/uploads
+
+[Install]
+WantedBy=multi-user.target
