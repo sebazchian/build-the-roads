@@ -87,6 +87,7 @@ function resolveCommunity() {
            || null;
 }
 function setCommunity(id) {
+  if (COMMUNITY && !id) localStorage.setItem('m2s_prev_community', COMMUNITY);
   COMMUNITY = id;
   if (id) localStorage.setItem('m2s_community', id);
   else localStorage.removeItem('m2s_community');
@@ -572,7 +573,10 @@ async function renderPicker() {
   renderHeader();
 
   const lead = DIV('stack padded');
-  lead.appendChild(backLink('/open', 'Back to bounties'));
+  const prev = localStorage.getItem('m2s_prev_community');
+  if (prev) {
+    lead.appendChild(BTN('btn btn-ghost btn-sm', '← Cancel', () => { setCommunity(prev); route(); }));
+  }
   lead.appendChild(h('h1', 't1', 'Join a community'));
   lead.appendChild(h('p', 'body', 'Each community has its own bounties and leaderboard. Pick one to get started.'));
   w.appendChild(lead);
@@ -587,7 +591,7 @@ async function renderPicker() {
       const card = DIV('card card-interactive');
       card.appendChild(h('div', 'b-title', esc(c.name)));
       card.appendChild(h('div', 'b-desc', esc(c.region || c.description || c.id)));
-      card.onclick = () => { setCommunity(c.id); toast('Joined ' + esc(c.name)); go('/open'); };
+      card.onclick = () => { setCommunity(c.id); toast('Joined ' + esc(c.name)); route(); };
       bodyStack.appendChild(card);
     });
   }
@@ -612,7 +616,7 @@ async function renderPicker() {
       const body = { id: cId.value.trim().toLowerCase(), name: cName.value.trim(), region: cReg.value.trim() || null, description: cDesc.value.trim() || null, admin_pubkey: ME, admin_display_name: MENAME };
       if (!body.id || !body.name) return toast('Need ID and name', true);
       const { community } = await api('/communities', { method: 'POST', body });
-      setCommunity(community.id); toast('Created ' + esc(community.name)); go('/open');
+      setCommunity(community.id); toast('Created ' + esc(community.name)); route();
     })
   ));
   bodyStack.appendChild(create);
