@@ -82,7 +82,7 @@ img{max-width:100%;display:block}
   gap:8px;padding-block:12px;min-height:56px;
 }
 @media (max-width:400px){
-  .site-header .wrap{flex-wrap:wrap;gap:6px}
+  .site-header .wrap{flex-wrap:nowrap;gap:6px}
   .brand .word .name{font-size:14px}
   .brand .word .tag{font-size:8px;display:block;white-space:nowrap}
   .brand .orb{width:26px;height:26px}
@@ -115,7 +115,7 @@ img{max-width:100%;display:block}
 }
 
 /* ── Tabs ── */
-.pill-tabs{display:inline-flex;gap:4px;background:var(--bg-raised);padding:5px;border-radius:999px;border:1px solid var(--border);margin-bottom:calc(var(--s)*1.5)}
+.pill-tabs{margin-bottom:3px;display:inline-flex;gap:4px;background:var(--bg-raised);padding:5px;border-radius:999px;border:1px solid var(--border);margin:5px}
 .pill-tabs button{
   padding:8px 18px;border-radius:999px;font-size:13px;font-weight:600;
   color:var(--ink-dim);background:none;border:none;cursor:pointer;transition:.15s
@@ -127,7 +127,7 @@ img{max-width:100%;display:block}
 .btn-sm.action-alert{color:var(--accent);border-color:var(--accent);background:var(--accent-dim)}
 
 /* ── Cards ── */
-.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:calc(var(--s)*3.5)}
+.card{margin-bottom:3px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:calc(var(--s)*3.5)}
 @media (max-width:480px){.card{padding:calc(var(--s)*3)}}
 .card-interactive{cursor:pointer;transition:border-color .15s}
 .card-interactive:hover{border-color:var(--border-hover)}
@@ -173,7 +173,7 @@ img{max-width:100%;display:block}
 .bar > i{display:block;height:100%;background:var(--accent);border-radius:999px}
 
 /* ── Buttons ── */
-.btn{
+.btn{margin-bottom:3px;
   display:inline-flex;align-items:center;justify-content:center;gap:6px;
   font-family:var(--font);font-size:14px;font-weight:600;
   padding:12px 22px;border-radius:var(--r-sm);border:none;cursor:pointer;
@@ -215,7 +215,7 @@ select{
 .overline-pad{margin-top:calc(var(--s)*3)}
 
 /* ── Pledge list ── */
-.pl-list{border-top:1px solid var(--border);margin-top:calc(var(--s)*1.5);padding-top:calc(var(--s)*1)}
+.pl-list{margin-bottom:3px;border-top:1px solid var(--border);margin-top:calc(var(--s)*1.5);padding-top:calc(var(--s)*1)}
 .pl-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;gap:8px}
 .pl-who{display:flex;align-items:center;gap:7px;min-width:0;flex-wrap:wrap}
 .pl-paid{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--green);background:var(--green-dim);padding:2px 7px;border-radius:999px;white-space:nowrap}
@@ -245,7 +245,7 @@ select{
 @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 
 /* ── Empty ── */
-.empty{text-align:center;padding:48px 20px;color:var(--ink-muted);font-size:15px}
+.empty{margin-bottom:3px;text-align:center;padding:48px 20px;color:var(--ink-muted);font-size:15px}
 .empty b{display:block;color:var(--ink);font-size:17px;font-weight:700;margin-bottom:6px}
 
 /* ── FAB ── */
@@ -264,7 +264,7 @@ select{
 .dev-banner{background:var(--accent-dim);color:var(--accent);padding:10px 16px;border-radius:var(--r-sm);font-size:13px;font-weight:500;text-align:center}
 
 /* ── Hints / Help ── */
-.hint{font-size:13px;color:var(--ink-muted);line-height:1.5}
+.hint{margin-bottom:3px;font-size:13px;color:var(--ink-muted);line-height:1.5}
 .hint b{color:var(--ink);font-weight:600}
 .help{background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--r);padding:calc(var(--s)*2.5)}
 .help-title{font-size:14px;font-weight:700;color:var(--ink)}
@@ -282,7 +282,7 @@ select{
 .signin p{color:var(--ink-dim);font-size:14px;margin-bottom:20px;max-width:280px;margin-inline:auto}
 
 /* ── Invoice box (fallback for no WebLN) ── */
-.invoice-box{background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--r-sm);padding:16px}
+.invoice-box{margin-bottom:3px;background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--r-sm);padding:16px}
 .invoice-text{font-family:ui-monospace,SFMono-Regular,monospace;font-size:11px;color:var(--ink-muted);word-break:break-all;line-height:1.5;margin:8px 0;padding:8px;background:var(--bg-input);border-radius:var(--r-sm);max-height:80px;overflow-y:auto}
 
 /* ── No-script ── */
