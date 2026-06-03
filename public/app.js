@@ -3,6 +3,7 @@ import { getPubkey, getDisplayName, signAction, makeInvoice, payInvoice, getLigh
 
 /* ── State ── */
 let ME=null, MENAME=null, COMMUNITY=null, ALL_COMMUNITIES=[];
+let ACTION_COUNT=0; // cached pending items for header/tab styling
 
 /* ── DOM builders ── */
 const $ = id => document.getElementById(id);
