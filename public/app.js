@@ -524,15 +524,26 @@ async function renderDetail(id) {
 
     const submitPfBtn = BTN('btn', 'Submit proof', async () => {
       if (submitPfBtn._submitting) return;
+      const workerInvoice = pInv.value.trim();
+      if (!workerInvoice) {
+        toast('Your Lightning address is required so pledgers can pay you automatically.', true);
+        return;
+      }
       submitPfBtn._submitting = true;
       submitPfBtn.disabled = true;
       submitPfBtn.textContent = 'Submitting…';
       try {
         let b64 = null; if (pImg.files[0]) b64 = await readFile(pImg.files[0]);
-        await api(`/bounties/${id}/proof`, { method: 'POST', body: { image_base64: b64, proof_note: pNote.value.trim(), worker_invoice: pInv.value.trim() } });
-        // Generate invoices for pledgers automatically
-        api(`/bounties/${id}/invoices`, { method: 'POST' }).catch(() => {});
-        toast('Proof sent  -  pledgers will be notified.'); renderDetail(id);
+        await api(`/bounties/${id}/proof`, { method: 'POST', body: { image_base64: b64, proof_note: pNote.value.trim(), worker_invoice: workerInvoice } });
+        // Generate invoices for pledgers automatically (await to confirm)
+        try {
+          const invResult = await api(`/bounties/${id}/invoices`, { method: 'POST' });
+          const okCount = (invResult.invoices || []).filter(i => !i.error).length;
+          toast(`Proof sent. ${okCount} invoice${okCount !== 1 ? 's' : ''} generated for pledgers.`);
+        } catch (invErr) {
+          toast('Proof saved, but invoice generation failed. Pledgers may need to pay manually.', true);
+        }
+        renderDetail(id);
       } catch (e) {
         toast(e.message, true);
         submitPfBtn.disabled = false;
@@ -586,12 +597,12 @@ async function renderDetail(id) {
           }
           invBox.appendChild(copyRow);
         } else if (b.worker_invoice) {
-          invBox.appendChild(h('div', 'hint', 'Worker Lightning address:'));
+          invBox.appendChild(h('div', 'hint', 'Use your Lightning wallet to pay the worker:'));
           invBox.appendChild(h('div', 'invoice-text', esc(b.worker_invoice)));
           const copyRow = DIV('gap-1');
           copyRow.appendChild(BTN('btn btn-ghost btn-sm', '\u{1F4CB} Copy address', () => { copyToClipboard(b.worker_invoice); toast('Copied'); }));
           if (hasWebLN()) {
-            copyRow.appendChild(BTN('btn btn-sm', '\u26A1 Pay', async () => {
+            copyRow.appendChild(BTN('btn btn-sm', '\u26A1 Pay now', async () => {
               try {
                 const result = await resolveInvoiceFromAddress(b.worker_invoice, myPledge.amount_sats, 'build the roads bounty');
                 let preimage = 'manual';
