@@ -45,8 +45,33 @@ export async function signAction(content, tags = []) {
   return {}; // dev: unsigned (server will warn and accept in dev)
 }
 
+// --- Lightning Address ---
+// Get the worker's Lightning address from their wallet automatically.
+// Priority: 1) Fedi webln.getInfo() lnAddress, 2) Alby lnAddress, 3) null (manual entry)
+export async function getLightningAddress() {
+  // Try WebLN (Fedi or Alby both expose webln.getInfo)
+  if (window.webln?.getInfo) {
+    try {
+      await window.webln.enable();
+      const info = await window.webln.getInfo();
+      // Alby and Fedi both return node.alias, but Alby also returns lnAddress
+      if (info?.lnAddress) return info.lnAddress;          // Alby
+      if (info?.node?.lnAddress) return info.node.lnAddress; // Alby (alternate)
+      if (info?.node?.alias && info.node.alias.includes('@')) return info.node.alias; // some wallets
+    } catch (e) { console.warn('getLightningAddress: webln.getInfo failed', e); }
+  }
+  // Try window.fedi for ecash-based address
+  if (window.fedi?.getActiveFederation) {
+    try {
+      const fed = await window.fedi.getActiveFederation();
+      if (fed?.lnAddress) return fed.lnAddress;
+    } catch (e) { console.warn('getLightningAddress: fedi.getActiveFederation failed', e); }
+  }
+  return null; // caller should show manual input field
+}
+
 // --- Payments ---
-// Worker creates an invoice (their wallet receives). Used at proof time.
+// Worker creates an invoice from a Lightning address (LNURL-pay / lightning: URI).
 // Returns { invoice: string } or throws with user-friendly message.
 export async function makeInvoice(amount, memo) {
   if (window.webln?.makeInvoice) {
@@ -58,7 +83,6 @@ export async function makeInvoice(amount, memo) {
 }
 
 // Pledger pays a BOLT11 invoice. Returns preimage (proof of payment).
-// Returns { preimage: string } or throws with user-friendly message.
 export async function payInvoice(bolt11) {
   if (window.webln?.sendPayment) {
     await window.webln.enable();
@@ -66,6 +90,41 @@ export async function payInvoice(bolt11) {
     return r.preimage;
   }
   throw new Error('NO_WEBLN');
+}
+
+// Resolve a Lightning address to a BOLT11 invoice for a given amount.
+// Lightning address format: user@domain -> https://domain/.well-known/lnurlp/user
+export async function resolveInvoiceFromAddress(lightningAddress, amountSats, memo) {
+  // If WebLN supports sendPaymentAsync with lnurl, use it directly
+  if (window.webln?.sendPayment) {
+    try {
+      await window.webln.enable();
+      // Try paying the lightning address directly via WebLN (Alby supports this)
+      const r = await window.webln.sendPayment('lightning:' + lightningAddress);
+      return { preimage: r.preimage, via: 'webln-direct' };
+    } catch (e) { /* fall through to LNURL fetch */ }
+  }
+  // Resolve via LNURL-pay HTTP fetch
+  const [user, domain] = lightningAddress.split('@');
+  if (!user || !domain) throw new Error('Invalid Lightning address: ' + lightningAddress);
+  const lnurlMetaUrl = `https://${domain}/.well-known/lnurlp/${user}`;
+  let meta;
+  try {
+    const resp = await fetch(lnurlMetaUrl);
+    meta = await resp.json();
+  } catch (e) { throw new Error('Could not reach Lightning address server for ' + domain); }
+  if (meta.status === 'ERROR') throw new Error(meta.reason || 'Lightning address error');
+  const amountMsats = amountSats * 1000;
+  if (amountMsats < meta.minSendable || amountMsats > meta.maxSendable)
+    throw new Error(`Amount out of range: ${meta.minSendable/1000}–${meta.maxSendable/1000} sats`);
+  const cbUrl = meta.callback + '?amount=' + amountMsats + (memo ? '&comment=' + encodeURIComponent(memo) : '');
+  let cbResp;
+  try {
+    const r = await fetch(cbUrl);
+    cbResp = await r.json();
+  } catch (e) { throw new Error('LNURL callback failed'); }
+  if (cbResp.status === 'ERROR') throw new Error(cbResp.reason || 'LNURL callback error');
+  return { invoice: cbResp.pr, via: 'lnurl' };
 }
 
 // --- Fallback helpers for UI ---

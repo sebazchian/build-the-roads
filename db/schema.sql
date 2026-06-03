@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS bounties (
   community_id TEXT NOT NULL DEFAULT 'default',
   status        TEXT NOT NULL DEFAULT 'open',-- open | claimed | proof_submitted | settled | cancelled | expired
   worker_pubkey TEXT,                        -- set when claimed
-  worker_invoice TEXT,                       -- BOLT11 the worker provides at proof time (optional shared invoice)
+  worker_invoice TEXT,                       -- Worker's Lightning address (user@domain or node@host) from Fedi/Alby; NOT a raw BOLT11
   proof_image   TEXT,                        -- relative path to uploaded proof
   proof_note    TEXT,
   proof_at      INTEGER,
@@ -55,9 +55,11 @@ CREATE TABLE IF NOT EXISTS pledges (
   sig           TEXT,                        -- schnorr signature
   sig_event_json TEXT,                       -- full JSON event for server-side verifyEvent
   sig_verified  INTEGER NOT NULL DEFAULT 0,  -- 1 = server verified event id+sig
-  status        TEXT NOT NULL DEFAULT 'pledged', -- pledged | paid | reneged | refunded | expired
+  status        TEXT NOT NULL DEFAULT 'pledged', -- pledged | payment_claimed | paid | reneged | refunded | expired
   paid_at       INTEGER,
-  payment_preimage TEXT,                     -- WebLN sendPayment proof
+  payment_preimage TEXT,                     -- WebLN sendPayment proof / preimage
+  verified_by   TEXT,                        -- admin pubkey who verified/reneged the payment
+  verified_at   INTEGER,                     -- when admin verified
   created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
   FOREIGN KEY (bounty_id) REFERENCES bounties(id),
   FOREIGN KEY (pledger_pubkey) REFERENCES users(pubkey),

@@ -223,13 +223,38 @@ const server = createServer(async (req, res) => {
     const payMatch = p.match(/^\/api\/pledges\/([0-9a-f-]{36})\/pay$/);
     if (payMatch && req.method === 'POST') {
       const body = await readJson(req);
+      // Self-reported payment: marks as 'payment_claimed', not yet verified
       const pledge = db.payPledge(payMatch[1], body.preimage);
+      return send(res, 200, { pledge });
+    }
+
+    // Admin: verify a pledger actually paid
+    const verifyPayMatch = p.match(/^\/api\/pledges\/([0-9a-f-]{36})\/verify$/);
+    if (verifyPayMatch && req.method === 'POST') {
+      const body = await readJson(req);
+      if (!isPubkey(body.verified_by))
+        return send(res, 400, { error: 'verified_by (admin pubkey) required' });
+      const pledge = db.verifyPayment(verifyPayMatch[1], body.verified_by);
+      return send(res, 200, { pledge });
+    }
+
+    // Admin: mark a pledger as reneged
+    const renegeMatch = p.match(/^\/api\/pledges\/([0-9a-f-]{36})\/renege$/);
+    if (renegeMatch && req.method === 'POST') {
+      const body = await readJson(req);
+      if (!isPubkey(body.verified_by))
+        return send(res, 400, { error: 'verified_by (admin pubkey) required' });
+      const pledge = db.renegePledge(renegeMatch[1], body.verified_by);
       return send(res, 200, { pledge });
     }
 
     const settleMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/settle$/);
     if (settleMatch && req.method === 'POST') {
-      const bounty = db.settleBounty(settleMatch[1]);
+      const body = await readJson(req);
+      // verified_by is required: only admin can settle after verifying payments
+      if (!isPubkey(body.verified_by))
+        return send(res, 400, { error: 'verified_by (admin pubkey) required to settle' });
+      const bounty = db.settleBounty(settleMatch[1], body.verified_by);
       return send(res, 200, { bounty });
     }
 
