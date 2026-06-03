@@ -64,7 +64,7 @@ img{max-width:100%;display:block}
 /* ── Layout ── */
 .wrap{max-width:var(--w);margin-inline:auto;padding:0 calc(var(--s)*3)}
 @media (max-width:480px){.wrap{padding:0 calc(var(--s)*2)}}
-.stack{display:flex;flex-direction:column;gap:calc(var(--s)*3);margin:5px}
+.stack{display:flex;flex-direction:column;gap:calc(var(--s)*3)}
 .stack-sm{display:flex;flex-direction:column;gap:calc(var(--s)*2)}
 .stack-xs{display:flex;flex-direction:column;gap:var(--s)}
 .padded{padding:calc(var(--s)*3) 0}
@@ -81,10 +81,11 @@ img{max-width:100%;display:block}
   display:flex;align-items:center;justify-content:space-between;
   gap:8px;padding-block:12px;min-height:56px;
 }
+.brand .word .tag{display:block}
 @media (max-width:400px){
   .site-header .wrap{flex-wrap:nowrap;gap:6px}
   .brand .word .name{font-size:14px}
-  .brand .word .tag{font-size:8px;display:block;white-space:nowrap}
+  .brand .word .tag{font-size:8px;white-space:nowrap}
   .brand .orb{width:26px;height:26px}
   .brand .orb svg{width:14px;height:14px}
 }
@@ -115,7 +116,7 @@ img{max-width:100%;display:block}
 }
 
 /* ── Tabs ── */
-.pill-tabs{margin-bottom:3px;display:inline-flex;gap:4px;background:var(--bg-raised);padding:5px;border-radius:999px;border:1px solid var(--border);margin:5px}
+.pill-tabs{display:inline-flex;gap:4px;background:var(--bg-raised);padding:5px;border-radius:999px;border:1px solid var(--border);margin:16px 0}
 .pill-tabs button{
   padding:8px 18px;border-radius:999px;font-size:13px;font-weight:600;
   color:var(--ink-dim);background:none;border:none;cursor:pointer;transition:.15s
