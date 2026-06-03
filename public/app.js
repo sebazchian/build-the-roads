@@ -396,9 +396,9 @@ async function renderDetail(id) {
 
   // title block
   const titleBlock = DIV('stack-sm padded');
-  titleBlock.appendChild(h('span', 'tag ' + cat.cls, cat.label));
+  titleBlock.appendChild(h('span', 'tag ' + cat.cls, esc(cat.label)));
   titleBlock.appendChild(h('h1', 't2', esc(b.title)));
-  titleBlock.appendChild(h('div', 'hint', `Posted by ${short(b.creator_pubkey)}${b.expires_at ? ' \u00b7 Due ' + fmtDate(b.expires_at) : ''}`));
+  titleBlock.appendChild(h('div', 'hint', `Posted by ${esc(short(b.creator_pubkey))}${b.expires_at ? ' \u00b7 Due ' + fmtDate(b.expires_at) : ''}`));
   bodyStack.appendChild(titleBlock);
 
   // description
