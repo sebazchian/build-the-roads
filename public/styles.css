@@ -152,15 +152,17 @@ img{max-width:100%;display:block}
 .btn.action-alert{color:var(--accent);border-color:var(--accent);background:var(--accent-dim)}
 
 /* ── Cards ── */
-.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:calc(var(--s)*3)}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:calc(var(--s)*3);margin-bottom:calc(var(--s)*1.5)}
 @media (max-width:480px){.card{padding:calc(var(--s)*2)}}
+.card:last-child{margin-bottom:0}
 .card-interactive{cursor:pointer;transition:border-color .15s}
 .card-interactive:hover{border-color:var(--border-hover)}
-.card .btn,.card .btn-ghost{margin-top:10px}
+.card .btn,.card .btn-ghost{margin-top:14px}
 .card .btn:first-child,.card .btn-ghost:first-child{margin-top:0}
 
 /* ── Tags ── */
-.tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;white-space:nowrap}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;white-space:nowrap;margin-bottom:calc(var(--s)*.75)}
+.tag:last-child{margin-bottom:0}
 .tag-cleanup{background:var(--green-dim);color:var(--green)}
 .tag-chores{background:rgba(139,92,246,.15);color:#a78bfa}
 .tag-paint{background:var(--blue-dim);color:var(--blue)}
@@ -222,13 +224,20 @@ input,textarea,select{
   background:var(--bg-input);color:var(--ink);outline:none;
   -webkit-appearance:none;appearance:none;
   transition:.15s;
+  margin-bottom:calc(var(--s)*1.5)
 }
+input:last-child,textarea:last-child,select:last-child{margin-bottom:0}
 input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
 textarea{min-height:90px;resize:vertical}
 select{
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%236B6670' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 12px center;padding-right:36px
 }
+
+/* ── Overline / section headers ── */
+.overline{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-muted);margin-bottom:calc(var(--s)*1);margin-top:calc(var(--s)*1.5)}
+.overline:first-child{margin-top:0}
+.overline-pad{margin-top:calc(var(--s)*3)}
 
 /* ── Pledge list ── */
 .pl-list{border-top:1px solid var(--border);margin-top:calc(var(--s)*1.5);padding-top:calc(var(--s)*1)}

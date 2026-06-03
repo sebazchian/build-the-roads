@@ -500,28 +500,10 @@ async function renderDetail(id) {
       const warn = daysLeft <= 0 ? '\u26A0\uFE0F Due today!' : daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' left to submit';
       pf.appendChild(h('div', 'hint', warn));
     }
-    pf.appendChild(hint('Photo or note showing the work is done. Once submitted, pledgers will be asked to pay you.'));
-    const pImg = h('input', ''); pImg.type = 'file'; pImg.accept = 'image/*'; pf.appendChild(pImg);
+    pf.appendChild(hint('Photo or note showing the work is done. The app will generate payment invoices for all pledgers automatically.'));
+    const pImg = h('input', ''); pImg.type = 'file'; pImg.accept = 'image/*'; pImg.style.marginBottom = '12px'; pf.appendChild(pImg);
     pf.appendChild(h('label', 'field-label', 'What did you do?'));
-    const pNote = h('textarea', ''); pNote.placeholder = 'Describe the work  -  what you did, how it looks now.'; pNote.style.marginBottom = '4px'; pf.appendChild(pNote);
-
-    // Lightning address: auto-fetch from Fedi/Alby wallet, allow manual override
-    pf.appendChild(h('label', 'field-label', 'Your Lightning address'));
-    const lnHint = h('div', 'hint', 'Fetching from your wallet…');
-    pf.appendChild(lnHint);
-    const pInv = h('input', ''); pInv.placeholder = 'you@wallet.com'; pf.appendChild(pInv);
-
-    // Try to auto-fill Lightning address
-    getLightningAddress().then(addr => {
-      if (addr) {
-        pInv.value = addr;
-        lnHint.textContent = 'Auto-filled from your wallet. Change it if you want payments sent elsewhere.';
-      } else {
-        lnHint.textContent = 'Enter your Lightning address (user@domain). Pledgers will pay you here.';
-      }
-    }).catch(() => {
-      lnHint.textContent = 'Enter your Lightning address (user@domain). Pledgers will pay you here.';
-    });
+    const pNote = h('textarea', ''); pNote.placeholder = 'Describe the work - what you did, how it looks now.'; pf.appendChild(pNote);
 
     const submitPfBtn = BTN('btn', 'Submit proof', async () => {
       if (submitPfBtn._submitting) return;
@@ -530,7 +512,7 @@ async function renderDetail(id) {
       submitPfBtn.textContent = 'Submitting…';
       try {
         let b64 = null; if (pImg.files[0]) b64 = await readFile(pImg.files[0]);
-        await api(`/bounties/${id}/proof`, { method: 'POST', body: { image_base64: b64, proof_note: pNote.value.trim(), worker_invoice: pInv.value.trim() } });
+        await api(`/bounties/${id}/proof`, { method: 'POST', body: { image_base64: b64, proof_note: pNote.value.trim() } });
         // Generate invoices for pledgers automatically
         api(`/bounties/${id}/invoices`, { method: 'POST' }).catch(() => {});
         toast('Proof sent  -  pledgers will be notified.'); renderDetail(id);
