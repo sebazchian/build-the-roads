@@ -221,7 +221,7 @@ function hint(text) {
 function howItWorks() {
   return DIV('card help',
     h('div', 'help-title', '🤝 How it works'),
-    h('div', 'help-step', h('span', 'num', '1'), h('div', '', h('b', '', 'Someone posts a need.'), '  -  Paint the hall, fix the gate, clean the lot.')),
+    h('div', 'help-step', h('span', 'num', '1'), h('div', '', h('b', '', 'Someone posts a need.'), '  -  Paint the hall. Fix the gate. Clean the lot.')),
     h('div', 'help-step', h('span', 'num', '2'), h('div', '', h('b', '', 'Neighbours chip in sats.'), '  -  Pledge a small amount. If the work gets done, you pay.')),
     h('div', 'help-step', h('span', 'num', '3'), h('div', '', h('b', '', 'A worker claims it.'), '  -  They do the job and send proof.')),
     h('div', 'help-step', h('span', 'num', '4'), h('div', '', h('b', '', 'Pledgers pay up.'), '  -  Everyone who promised sends sats to the worker.')),

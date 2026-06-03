@@ -1,4 +1,4 @@
-# Bounty — Data Model & Trust Score
+# build the roads — Data Model & Trust Score
 
 ## Entities
 
