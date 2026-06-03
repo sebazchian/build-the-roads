@@ -92,8 +92,8 @@ const api = async (path, opts = {}) => {
 async function refreshActionCount() {
   if (!ME) { ACTION_COUNT = 0; return; }
   try {
-    const { toClaim, toPay, toVerify } = await api('/pending?pubkey=' + encodeURIComponent(ME));
-    ACTION_COUNT = (toClaim?.length || 0) + (toPay?.length || 0) + (toVerify?.length || 0);
+    const { toClaim, toPay } = await api('/pending?pubkey=' + encodeURIComponent(ME));
+    ACTION_COUNT = (toClaim?.length || 0) + (toPay?.length || 0);
   } catch (e) { ACTION_COUNT = 0; }
 }
 
@@ -753,14 +753,14 @@ async function renderPending() {
   const lead = DIV('stack');
   lead.appendChild(backLink('/open', 'Open needs'));
   lead.appendChild(h('h1', 't1', 'Pending'));
-  lead.appendChild(h('p', 'body', 'Jobs you claimed, payments you owe, and things to verify.'));
+  lead.appendChild(h('p', 'body', 'Jobs you claimed and payments you owe.'));
   w.appendChild(lead);
 
   const bodyStack = DIV('stack');
   w.appendChild(bodyStack);
 
   try {
-    const { toClaim, toPay, toVerify } = await api('/pending?pubkey=' + encodeURIComponent(ME));
+    const { toClaim, toPay } = await api('/pending?pubkey=' + encodeURIComponent(ME));
 
     // Jobs to prove
     bodyStack.appendChild(h('div', 'overline', 'Jobs you claimed'));
