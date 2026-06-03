@@ -1,5 +1,5 @@
 /* my two sats — clean, no-weird-links */
-import { getPubkey, getDisplayName, signAction, makeInvoice, payInvoice, inFedi, generateDevKey } from './fedi.js';
+import { getPubkey, getDisplayName, signAction, makeInvoice, payInvoice, inFedi, hasWebLN, hasNostr, generateDevKey, copyToClipboard } from './fedi.js';
 
 /* ── State ── */
 let ME=null, MENAME=null, COMMUNITY=null, ALL_COMMUNITIES=[];
@@ -54,11 +54,11 @@ function makeBrandOrb() {
 /* ── Category config ── */
 const CATEGORIES = [
   { id: 'cleanup',   label: '🧹 Cleanup',      cls: 'tag-cleanup' },
+  { id: 'chores',    label: '🧺 Chores',       cls: 'tag-chores' },
   { id: 'painting',  label: '🎨 Painting',     cls: 'tag-paint' },
   { id: 'repair',    label: '🔧 Repair',       cls: 'tag-repair' },
   { id: 'build',     label: '🏗️ Build',        cls: 'tag-build' },
   { id: 'signage',   label: '🪧 Signage',      cls: 'tag-signage' },
-  { id: 'electrical',label: '⚡ Electrical',   cls: 'tag-electrical' },
   { id: 'plumbing',  label: '🚰 Plumbing',     cls: 'tag-plumbing' },
   { id: 'transport', label: '🚚 Transport',    cls: 'tag-transport' },
   { id: 'garden',    label: '🌱 Garden',       cls: 'tag-garden' },
@@ -240,7 +240,6 @@ async function renderHome(filter) {
 
 function bountyCard(b) {
   const cat = CAT_MAP[b.category] || CAT_MAP.other;
-  const pct = b.threshold_sats > 0 ? Math.min(100, Math.round(b.pot_sats / b.threshold_sats * 100)) : 0;
 
   const card = DIV('card card-interactive');
   card.onclick = () => go('/b/' + b.id);
@@ -257,11 +256,6 @@ function bountyCard(b) {
     h('span', 'b-nums', b.pledges.length + ' pledge' + (b.pledges.length !== 1 ? 's' : ''))
   );
   card.appendChild(nums);
-
-  if (b.threshold_sats > 0) {
-    card.appendChild(h('div', 'bar', h('i', '', { style: { width: pct + '%' } })));
-    card.appendChild(h('div', 'b-nums', pct + '% of ' + fmtS(b.threshold_sats) + ' needed'));
-  }
 
   return card;
 }
@@ -294,15 +288,12 @@ function renderNew() {
   });
   card.appendChild(h('label', 'field-label', 'Category')); card.appendChild(fCat);
 
-  const fThresh = h('input', ''); fThresh.type = 'number'; fThresh.placeholder = '0 = anyone can claim right away';
-  card.appendChild(h('label', 'field-label', 'Minimum pot (optional)')); card.appendChild(fThresh);
-
   const submit = BTN('btn', 'Post it', async () => {
     submit.disabled = true;
     try {
       const body = {
         title: fTitle.value.trim(), description: fDesc.value.trim(),
-        category: fCat.value, threshold_sats: parseInt(fThresh.value) || 0,
+        category: fCat.value,
         creator_pubkey: ME, display_name: MENAME, community_id: COMMUNITY,
       };
       if (!body.title || !body.description) throw new Error('Need a title and story.');
@@ -331,7 +322,6 @@ async function renderDetail(id) {
 
   const myPledge = b.pledges.find(p => p.pledger_pubkey === ME);
   const isWorker = b.worker_pubkey === ME;
-  const pct = b.threshold_sats > 0 ? Math.min(100, Math.round(b.pot_sats / b.threshold_sats * 100)) : 0;
 
   const cat = CAT_MAP[b.category] || CAT_MAP.other;
 
@@ -355,10 +345,6 @@ async function renderDetail(id) {
   ));
   if (b.effective_pot_sats !== b.pot_sats)
     pot.appendChild(h('div', 'b-nums', '~' + fmt(b.effective_pot_sats) + ' trusted pot'));
-  if (b.threshold_sats > 0) {
-    pot.appendChild(h('div', 'bar', h('i', '', { style: { width: pct + '%' } })));
-    pot.appendChild(h('div', 'b-nums', pct + '% of ' + fmtS(b.threshold_sats) + ' needed'));
-  }
   if (b.pledges.length) {
     const pl = DIV('pl-list');
     b.pledges.forEach(p => {
@@ -416,13 +402,11 @@ async function renderDetail(id) {
     pledgeCard.appendChild(DIV('gap-1', pBtn));
     bodyStack.appendChild(pledgeCard);
 
-    if (!isWorker && !myPledge) {
-      const canClaim = b.threshold_sats === 0 || b.pot_sats >= b.threshold_sats;
+    if (!isWorker) {
       const claimCard = DIV('card');
       claimCard.appendChild(h('div', 'overline', 'Do the work'));
       claimCard.appendChild(hint('Claim this job, do the work, then send proof. The pledgers will pay you.'));
-      claimCard.appendChild(BTN('btn btn-ghost', canClaim ? "🙋 I'll do this" : 'Need ' + fmtS(Math.max(0, b.threshold_sats - b.pot_sats)) + ' more', async () => {
-        if (!canClaim) return;
+      claimCard.appendChild(BTN('btn btn-ghost', "🙋 I'll do this", async () => {
         const sig = await signAction('Claim', { kind: 'm2s-claim', bounty: b.id });
         await api(`/bounties/${id}/claim`, { method: 'POST', body: { worker_pubkey: ME, display_name: MENAME, community_id: COMMUNITY, ...sig } });
         toast('Claimed.'); renderDetail(id);
@@ -441,6 +425,25 @@ async function renderDetail(id) {
     const pNote = h('textarea', ''); pNote.placeholder = 'What did you do?'; pf.appendChild(pNote);
     pf.appendChild(h('label', 'field-label', 'Lightning invoice'));
     const pInv = h('input', ''); pInv.placeholder = 'Your wallet makes this'; pf.appendChild(pInv);
+
+    // If WebLN available, add "Get from wallet" button
+    if (hasWebLN()) {
+      pf.appendChild(DIV('gap-1',
+        BTN('btn btn-ghost btn-sm', 'Get invoice from wallet', async () => {
+          try {
+            const inv = await makeInvoice(myPledge ? myPledge.amount_sats : b.pot_sats, 'my two sats: ' + b.title.slice(0, 40));
+            pInv.value = inv;
+            toast('Invoice fetched from wallet');
+          } catch (e) {
+            if (e.message === 'NO_WEBLN') toast('Wallet not ready', true);
+            else toast(e.message, true);
+          }
+        })
+      ));
+    } else {
+      pf.appendChild(h('div', 'hint', 'Open your Lightning wallet, create an invoice for the pledged amount, then paste it here.'));
+    }
+
     pf.appendChild(DIV('gap-1',
       BTN('btn', 'Submit proof', async () => {
         let b64 = null; if (pImg.files[0]) b64 = await readFile(pImg.files[0]);
@@ -465,18 +468,45 @@ async function renderDetail(id) {
       pay.appendChild(h('div', 'overline', 'Your turn'));
       pay.appendChild(h('div', 'b-desc', 'You pledged ' + fmtS(myPledge.amount_sats) + '. The work is done.'));
       pay.appendChild(hint('Tap Pay to send sats from your Lightning wallet to the worker. You promised — now you keep your word. If the work is bad, use Flag instead.'));
-      pay.appendChild(DIV('stack-xs',
-        BTN('btn', 'Pay ' + fmtS(myPledge.amount_sats), async () => {
+
+      const payActions = DIV('stack-xs');
+
+      if (hasWebLN()) {
+        payActions.appendChild(BTN('btn', 'Pay ' + fmtS(myPledge.amount_sats), async () => {
           if (!b.worker_invoice) return toast('No invoice yet.', true);
-          const preimage = await payInvoice(b.worker_invoice);
-          await api(`/pledges/${myPledge.id}/pay`, { method: 'POST', body: { preimage } });
-          toast('Paid.'); renderDetail(id);
-        }),
-        BTN('btn btn-ghost', 'Flag as bad', async () => {
-          await api(`/bounties/${id}/flag`, { method: 'POST', body: { flagger_pubkey: ME, target_pubkey: b.worker_pubkey, reason: 'bad work' } });
-          toast('Flagged.'); renderDetail(id);
-        })
-      ));
+          try {
+            const preimage = await payInvoice(b.worker_invoice);
+            await api(`/pledges/${myPledge.id}/pay`, { method: 'POST', body: { preimage } });
+            toast('Paid.'); renderDetail(id);
+          } catch (e) {
+            if (e.message === 'NO_WEBLN') toast('Wallet disconnected', true);
+            else toast(e.message, true);
+          }
+        }));
+      } else {
+        // No WebLN — show invoice for manual payment
+        if (b.worker_invoice) {
+          const invBox = h('div', 'invoice-box');
+          const invText = h('div', 'invoice-text', esc(b.worker_invoice));
+          invBox.appendChild(h('div', 'hint', 'Copy this invoice and pay it in your Lightning wallet:'));
+          invBox.appendChild(invText);
+          invBox.appendChild(BTN('btn btn-ghost btn-sm', '📋 Copy invoice', () => {
+            copyToClipboard(b.worker_invoice);
+            toast('Invoice copied');
+          }));
+          payActions.appendChild(invBox);
+        }
+        payActions.appendChild(BTN('btn', 'I paid manually', async () => {
+          await api(`/pledges/${myPledge.id}/pay`, { method: 'POST', body: { preimage: 'manual' } });
+          toast('Marked as paid.'); renderDetail(id);
+        }));
+      }
+
+      payActions.appendChild(BTN('btn btn-ghost', 'Flag as bad', async () => {
+        await api(`/bounties/${id}/flag`, { method: 'POST', body: { flagger_pubkey: ME, target_pubkey: b.worker_pubkey, reason: 'bad work' } });
+        toast('Flagged.'); renderDetail(id);
+      }));
+      pay.appendChild(payActions);
       bodyStack.appendChild(pay);
     }
     if (b.creator_pubkey === ME) {

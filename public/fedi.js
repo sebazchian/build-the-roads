@@ -2,6 +2,8 @@
 // In Fedi, window.webln / window.nostr / window.fedi are injected automatically.
 
 export const inFedi = () => typeof window !== 'undefined' && !!window.fedi;
+export const hasWebLN = () => typeof window !== 'undefined' && !!window.webln;
+export const hasNostr = () => typeof window !== 'undefined' && !!window.nostr?.getPublicKey;
 
 const LS_KEY = 'm2s_dev_pubkey';
 
@@ -45,21 +47,39 @@ export async function signAction(content, tags = []) {
 
 // --- Payments ---
 // Worker creates an invoice (their wallet receives). Used at proof time.
+// Returns { invoice: string } or throws with user-friendly message.
 export async function makeInvoice(amount, memo) {
   if (window.webln?.makeInvoice) {
     await window.webln.enable();
     const r = await window.webln.makeInvoice({ amount, defaultMemo: memo });
     return r.paymentRequest;
   }
-  throw new Error('Lightning not available — open this in the Fedi app to receive payments.');
+  throw new Error('NO_WEBLN');
 }
 
 // Pledger pays a BOLT11 invoice. Returns preimage (proof of payment).
+// Returns { preimage: string } or throws with user-friendly message.
 export async function payInvoice(bolt11) {
   if (window.webln?.sendPayment) {
     await window.webln.enable();
     const r = await window.webln.sendPayment(bolt11);
     return r.preimage;
   }
-  throw new Error('Lightning not available — open this in the Fedi app to pay.');
+  throw new Error('NO_WEBLN');
+}
+
+// --- Fallback helpers for UI ---
+export function copyToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+  // Fallback for older browsers / insecure contexts
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
 }

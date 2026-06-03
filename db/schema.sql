@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS bounties (
   description   TEXT NOT NULL,
   category      TEXT,                        -- cleanup | painting | repair | other
   creator_pubkey TEXT NOT NULL,
-  threshold_sats INTEGER NOT NULL DEFAULT 0, -- all-or-nothing; 0 = claimable anytime
+  threshold_sats INTEGER NOT NULL DEFAULT 0, -- DEPRECATED: kept for backward compat, always 0
   expires_at    INTEGER,                     -- optional unix ts; pledges expire if unclaimed
   community_id TEXT NOT NULL DEFAULT 'default',
   status        TEXT NOT NULL DEFAULT 'open',-- open | claimed | proof_submitted | settled | cancelled | expired

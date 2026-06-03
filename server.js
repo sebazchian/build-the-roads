@@ -129,7 +129,6 @@ const server = createServer(async (req, res) => {
         title: String(b.title).slice(0, 200),
         description: String(b.description).slice(0, 2000),
         category: b.category, creator_pubkey: b.creator_pubkey,
-        threshold_sats: parseInt(b.threshold_sats) || 0,
         expires_at: b.expires_at ? parseInt(b.expires_at) : null,
         community_id: cid,
       });

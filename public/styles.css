@@ -152,11 +152,11 @@ img{max-width:100%;display:block}
 /* ── Tags ── */
 .tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;white-space:nowrap}
 .tag-cleanup{background:var(--green-dim);color:var(--green)}
+.tag-chores{background:rgba(139,92,246,.15);color:#a78bfa}
 .tag-paint{background:var(--blue-dim);color:var(--blue)}
 .tag-repair{background:var(--accent-dim);color:var(--accent)}
 .tag-build{background:rgba(139,92,246,.15);color:#a78bfa}
 .tag-signage{background:rgba(236,72,153,.15);color:#ec4899}
-.tag-electrical{background:rgba(250,204,21,.15);color:#facc15}
 .tag-plumbing{background:rgba(56,189,248,.15);color:#38bdf8}
 .tag-transport{background:rgba(248,113,113,.15);color:#f87171}
 .tag-garden{background:rgba(74,222,128,.15);color:#4ade80}
@@ -282,6 +282,10 @@ select{
 .signin .orb svg{width:28px;height:28px}
 .signin h2{font-size:22px;font-weight:700;margin-bottom:6px}
 .signin p{color:var(--ink-dim);font-size:14px;margin-bottom:20px;max-width:280px;margin-inline:auto}
+
+/* ── Invoice box (fallback for no WebLN) ── */
+.invoice-box{background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px}
+.invoice-text{font-family:ui-monospace,SFMono-Regular,monospace;font-size:11px;color:var(--ink-muted);word-break:break-all;line-height:1.5;margin:8px 0;padding:8px;background:var(--bg-input);border-radius:var(--r-sm);max-height:80px;overflow-y:auto}
 
 /* ── No-script ── */
 noscript .ns-banner{background:var(--red-dim);color:var(--red);padding:16px;text-align:center;font-weight:600}
