@@ -557,12 +557,17 @@ async function renderDetail(id) {
 
   // Actions  -  proof submitted
   // Retroactive: if proof_submitted but no worker_invoice, show form to add it
-  // (usually only the worker sees this, but showing to all prevents being stuck)
   if (b.status === 'proof_submitted' && !b.worker_invoice) {
     const fixPay = DIV('card');
     fixPay.appendChild(h('div', 'overline', 'Add your payment address'));
     fixPay.appendChild(h('div', 'hint', 'Pledgers need a Lightning address to pay you automatically.'));
     const fixInv = h('input', ''); fixInv.placeholder = 'you@wallet.com'; fixPay.appendChild(fixInv);
+
+    // Auto-fetch from wallet
+    getLightningAddress().then(addr => {
+      if (addr) { fixInv.value = addr; }
+    }).catch(() => {});
+
     const fixBtn = BTN('btn', 'Save address & generate invoices', async () => {
       if (!fixInv.value.trim()) { toast('Enter a Lightning address', true); return; }
       try {
