@@ -244,7 +244,6 @@ async function renderHome(filter) {
   renderHeader();
 
   const stack = DIV('stack');
-  stack.appendChild(h('h1', 't1', 'What needs doing?'));
   stack.appendChild(makeTabs(filter === 'open' ? 'open' : 'all'));
   wrap.appendChild(stack);
 
