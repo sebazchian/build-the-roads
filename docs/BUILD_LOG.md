@@ -142,3 +142,52 @@ Chronological decision + progress log. Newest at bottom.
 3. Pledge to expired bounty → HTTP 400: "Bounty has expired — cannot pledge".
 
 **COMMIT:** `d1a6371` — not pushed to GitHub (awaiting Jason approval).
+
+## 2026-06-03 ~04:45 UTC — Fixed app.js syntax error (missing closing brace)
+
+- `renderDetail` was missing closing `}` after expiry notice insertion
+- Brace balance went to +1 → browser `SyntaxError: Unexpected end of input` at :774
+- Fixed, server restarted, verified at `http://100.122.159.20:3005/`
+- Commit: `f9e6e7a`
+
+## 2026-06-03 ~06:35 UTC — Auto-invoices, grace periods, pending dashboard
+
+**WHAT JASON ASKED FOR:**
+1. Auto-generate invoices for pledgers when job is done (so they don't falsely self-report)
+2. Grace periods: time to complete the work + time to pay
+3. Pending dashboard showing what needs action
+
+**IMPLEMENTATION:**
+
+**Auto-invoices:**
+- Server-side LNURL-pay resolution utility `lib/lnurl.js` (pure HTTP, no wallet)
+- `POST /api/bounties/:id/invoices` resolves worker's Lightning address → BOLT11 for each pledger
+- Invoices stored on pledges (`invoice_request` column)
+- `POST /api/pledges/:id/autopay` records WebLN payment with preimage (sets status='paid' immediately)
+- Frontend auto-calls invoice generation after proof submit
+- Payment UI: shows BOLT11 invoice + "Copy invoice" + "⚡ Pay now" (WebLN) + "✅ I paid manually" fallback
+
+**Grace periods:**
+- `claim_deadline`: 7 days from claim (worker must submit proof by then)
+- `payment_deadline`: 7 days from proof submit (pledgers must pay by then)
+- `expireBounties()` now handles three expiry types:
+  1. Unclaimed bounties (original)
+  2. **Claim forfeiture**: bounty returns to `open` if worker doesn't prove
+  3. **Auto-renege**: unpaid pledges marked `reneged` after payment deadline; bounty auto-settled
+- Frontend shows count-down: "3d left to submit" / "2d left to pay"
+
+**Pending dashboard:**
+- New tab ⏳ in main navigation + header "Pending" button
+- `/api/pending?pubkey=` returns `{ toClaim[], toPay[], toVerify[] }`
+- `toClaim`: jobs user claimed that need proof
+- `toPay`: pledges user promised on proof_submitted bounties
+- `toVerify` (admin only): bounties awaiting admin settlement
+- Cards are click-to-navigate to bounty detail
+
+**E2E tested:**
+1. Create → Pledge → Claim (with 7d deadline) → Submit proof (with 7d payment window)
+2. Invoices auto-generated via LNURL: `lnbc50u1p4pl59up...`
+3. Auto-pay records status='paid' with preimage
+4. Pending API returns correct buckets
+
+**COMMIT:** `7868a56` — not pushed.

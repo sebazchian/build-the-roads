@@ -155,7 +155,7 @@ function renderHeader() {
   if (ME) {
     meta.appendChild(h('div', 'up', esc(MENAME || short(ME))));
     meta.appendChild(h('div', 'down', short(ME)));
-    const pendingBtn = BTN('btn btn-ghost btn-sm', '⏳ Pending', () => go('/pending'));
+    const pendingBtn = BTN('btn btn-ghost btn-sm', 'Action', () => go('/pending'));
     pendingBtn.style.marginLeft = '8px';
     meta.appendChild(pendingBtn);
   }
@@ -174,7 +174,7 @@ function makeTabs(active) {
   };
   wrap.appendChild(mk('Open', '/open', active === 'open'));
   wrap.appendChild(mk('All', '/all', active === 'all'));
-  wrap.appendChild(mk('⏳', '/pending', active === 'pending'));
+  wrap.appendChild(mk('Action', '/pending', active === 'pending'));
   wrap.appendChild(mk('🏆', '/leaderboard', active === 'leaderboard'));
   return wrap;
 }
