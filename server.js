@@ -194,8 +194,7 @@ const server = createServer(async (req, res) => {
         }
       }
       db.ensureUser(body.worker_pubkey, body.display_name);
-      const cid = body.community_id || getCid();
-      const bounty = db.claimBounty(claimMatch[1], body.worker_pubkey, cid);
+      const bounty = db.claimBounty(claimMatch[1], body.worker_pubkey);
       return send(res, 200, { bounty });
     }
 
@@ -215,10 +214,9 @@ const server = createServer(async (req, res) => {
         await writeFile(join(UPLOAD_DIR, fname), data);
         imagePath = `/uploads/${fname}`;
       }
-      const cid = body.community_id || getCid();
       const bounty = db.submitProof(proofMatch[1], {
         proof_image: imagePath, proof_note: body.proof_note, worker_invoice: body.worker_invoice,
-      }, cid);
+      });
       return send(res, 200, { bounty });
     }
 
@@ -231,9 +229,7 @@ const server = createServer(async (req, res) => {
 
     const settleMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/settle$/);
     if (settleMatch && req.method === 'POST') {
-      const body = await readJson(req);
-      const cid = body.community_id || getCid();
-      const bounty = db.settleBounty(settleMatch[1], cid);
+      const bounty = db.settleBounty(settleMatch[1]);
       return send(res, 200, { bounty });
     }
 

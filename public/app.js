@@ -419,36 +419,18 @@ async function renderDetail(id) {
   if (b.status === 'claimed' && isWorker) {
     const pf = DIV('card');
     pf.appendChild(h('div', 'overline', 'Submit proof'));
-    pf.appendChild(hint('Take a photo of the finished work and paste your Lightning invoice so the pledgers can pay you.'));
+    pf.appendChild(hint('Photo or note showing the work is done. Once you submit, everyone who pledged will be asked to pay you directly.'));
     const pImg = h('input', ''); pImg.type = 'file'; pImg.accept = 'image/*'; pf.appendChild(pImg);
-    pf.appendChild(h('label', 'field-label', 'Note (optional)'));
-    const pNote = h('textarea', ''); pNote.placeholder = 'What did you do?'; pf.appendChild(pNote);
-    pf.appendChild(h('label', 'field-label', 'Lightning invoice'));
-    const pInv = h('input', ''); pInv.placeholder = 'Your wallet makes this'; pf.appendChild(pInv);
-
-    // If WebLN available, add "Get from wallet" button
-    if (hasWebLN()) {
-      pf.appendChild(DIV('gap-1',
-        BTN('btn btn-ghost btn-sm', 'Get invoice from wallet', async () => {
-          try {
-            const inv = await makeInvoice(myPledge ? myPledge.amount_sats : b.pot_sats, 'my two sats: ' + b.title.slice(0, 40));
-            pInv.value = inv;
-            toast('Invoice fetched from wallet');
-          } catch (e) {
-            if (e.message === 'NO_WEBLN') toast('Wallet not ready', true);
-            else toast(e.message, true);
-          }
-        })
-      ));
-    } else {
-      pf.appendChild(h('div', 'hint', 'Open your Lightning wallet, create an invoice for the pledged amount, then paste it here.'));
-    }
-
-    pf.appendChild(DIV('gap-1',
+    pf.appendChild(h('label', 'field-label', 'What did you do?'));
+    const pNote = h('textarea', ''); pNote.placeholder = 'Describe the work — what you did, how it looks now.'; pNote.style.marginBottom = '4px'; pf.appendChild(pNote);
+    pf.appendChild(h('div', 'hint', 'Optional: add your Lightning address below so pledgers can send directly to you.'));
+    pf.appendChild(h('label', 'field-label', 'Lightning address (optional)'));
+    const pInv = h('input', ''); pInv.placeholder = 'you@wallet.com or lnbc…'; pf.appendChild(pInv);
+    pf.appendChild(DIV('gap-2',
       BTN('btn', 'Submit proof', async () => {
         let b64 = null; if (pImg.files[0]) b64 = await readFile(pImg.files[0]);
-        await api(`/bounties/${id}/proof`, { method: 'POST', body: { image_base64: b64, proof_note: pNote.value.trim(), worker_invoice: pInv.value.trim(), community_id: COMMUNITY } });
-        toast('Proof sent.'); renderDetail(id);
+        await api(`/bounties/${id}/proof`, { method: 'POST', body: { image_base64: b64, proof_note: pNote.value.trim(), worker_invoice: pInv.value.trim() } });
+        toast('Proof sent — pledgers will be notified.'); renderDetail(id);
       })
     ));
     bodyStack.appendChild(pf);
@@ -465,44 +447,38 @@ async function renderDetail(id) {
     }
     if (myPledge && myPledge.status === 'pledged') {
       const pay = DIV('card');
-      pay.appendChild(h('div', 'overline', 'Your turn'));
+      pay.appendChild(h('div', 'overline', 'Your turn to pay'));
       pay.appendChild(h('div', 'b-desc', 'You pledged ' + fmtS(myPledge.amount_sats) + '. The work is done.'));
-      pay.appendChild(hint('Tap Pay to send sats from your Lightning wallet to the worker. You promised — now you keep your word. If the work is bad, use Flag instead.'));
 
-      const payActions = DIV('stack-xs');
-
-      if (hasWebLN()) {
-        payActions.appendChild(BTN('btn', 'Pay ' + fmtS(myPledge.amount_sats), async () => {
-          if (!b.worker_invoice) return toast('No invoice yet.', true);
-          try {
-            const preimage = await payInvoice(b.worker_invoice);
-            await api(`/pledges/${myPledge.id}/pay`, { method: 'POST', body: { preimage } });
-            toast('Paid.'); renderDetail(id);
-          } catch (e) {
-            if (e.message === 'NO_WEBLN') toast('Wallet disconnected', true);
-            else toast(e.message, true);
-          }
-        }));
-      } else {
-        // No WebLN — show invoice for manual payment
-        if (b.worker_invoice) {
-          const invBox = h('div', 'invoice-box');
-          const invText = h('div', 'invoice-text', esc(b.worker_invoice));
-          invBox.appendChild(h('div', 'hint', 'Copy this invoice and pay it in your Lightning wallet:'));
-          invBox.appendChild(invText);
-          invBox.appendChild(BTN('btn btn-ghost btn-sm', '📋 Copy invoice', () => {
-            copyToClipboard(b.worker_invoice);
-            toast('Invoice copied');
+      // Show worker's Lightning address if they provided one
+      if (b.worker_invoice) {
+        const invBox = DIV('invoice-box');
+        invBox.appendChild(h('div', 'hint', 'Send ' + fmtS(myPledge.amount_sats) + ' to this address:'));
+        invBox.appendChild(h('div', 'invoice-text', esc(b.worker_invoice)));
+        const copyRow = DIV('gap-1');
+        copyRow.appendChild(BTN('btn btn-ghost btn-sm', '📋 Copy', () => { copyToClipboard(b.worker_invoice); toast('Copied'); }));
+        if (hasWebLN() && b.worker_invoice.toLowerCase().startsWith('lnbc')) {
+          copyRow.appendChild(BTN('btn btn-sm', '⚡ Pay now', async () => {
+            try {
+              const preimage = await payInvoice(b.worker_invoice);
+              await api(`/pledges/${myPledge.id}/pay`, { method: 'POST', body: { preimage } });
+              toast('Paid!'); renderDetail(id);
+            } catch (e) { toast(e.message === 'NO_WEBLN' ? 'Wallet not connected' : e.message, true); }
           }));
-          payActions.appendChild(invBox);
         }
-        payActions.appendChild(BTN('btn', 'I paid manually', async () => {
-          await api(`/pledges/${myPledge.id}/pay`, { method: 'POST', body: { preimage: 'manual' } });
-          toast('Marked as paid.'); renderDetail(id);
-        }));
+        invBox.appendChild(copyRow);
+        pay.appendChild(invBox);
+      } else {
+        pay.appendChild(h('div', 'hint', 'The worker has not provided a Lightning address yet. Send them ' + fmtS(myPledge.amount_sats) + ' however you can, then tap “I paid” below.'));
       }
 
-      payActions.appendChild(BTN('btn btn-ghost', 'Flag as bad', async () => {
+      const payActions = DIV('stack-xs');
+      payActions.style.marginTop = '12px';
+      payActions.appendChild(BTN('btn', '✅ I paid', async () => {
+        await api(`/pledges/${myPledge.id}/pay`, { method: 'POST', body: { preimage: 'manual' } });
+        toast('Marked as paid. The community remembers.'); renderDetail(id);
+      }));
+      payActions.appendChild(BTN('btn btn-ghost', 'Flag as bad work', async () => {
         await api(`/bounties/${id}/flag`, { method: 'POST', body: { flagger_pubkey: ME, target_pubkey: b.worker_pubkey, reason: 'bad work' } });
         toast('Flagged.'); renderDetail(id);
       }));
