@@ -89,6 +89,14 @@ const api = async (path, opts = {}) => {
   return j;
 };
 
+async function refreshActionCount() {
+  if (!ME) { ACTION_COUNT = 0; return; }
+  try {
+    const { toClaim, toPay, toVerify } = await api('/pending?pubkey=' + encodeURIComponent(ME));
+    ACTION_COUNT = (toClaim?.length || 0) + (toPay?.length || 0) + (toVerify?.length || 0);
+  } catch (e) { ACTION_COUNT = 0; }
+}
+
 /* ── Community ── */
 function resolveCommunity() {
   COMMUNITY = new URLSearchParams(location.search).get('community')
@@ -115,9 +123,9 @@ function cName(id) {
 
 /* ── Router ── */
 function go(hash) { location.hash = hash; }
-window.addEventListener('hashchange', route);
+window.addEventListener('hashchange', () => route());
 
-function route() {
+async function route() {
   const app = $('app');
   app.innerHTML = '';
   const h = location.hash.slice(1) || '/';
@@ -125,6 +133,7 @@ function route() {
   if (h === '/philosophy') { renderPhilosophy(); return; }
   if (!COMMUNITY) { renderPicker(); return; }
   if (!ME) { renderSignIn(); return; }
+  await refreshActionCount(); // wait for count so header highlights correctly
   if (h === '/' || h === '/open') renderHome('open');
   else if (h === '/all') renderHome(null);
   else if (h === '/new') renderNew();
@@ -170,7 +179,9 @@ function renderHeader() {
 function makeTabs(active) {
   const wrap = DIV('pill-tabs');
   const mk = (label, href, on) => {
-    const b = BTN(on ? 'on' : '', label, () => go(href));
+    const isPending = label === 'To-do';
+    const extraCls = (isPending && ACTION_COUNT > 0 && !on) ? ' action-alert' : '';
+    const b = BTN((on ? 'on' : '') + extraCls, label, () => go(href));
     return b;
   };
   wrap.appendChild(mk('Open', '/open', active === 'open'));
@@ -879,5 +890,5 @@ function renderSignIn() {
     const ban = h('div', 'dev-banner', 'Dev mode  -  open in Fedi app for real Lightning + Nostr.');
     document.querySelector('main').prepend(ban);
   }
-  route();
+  await route();
 })();
