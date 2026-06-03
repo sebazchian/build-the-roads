@@ -590,6 +590,7 @@ async function renderDetail(id) {
     adminNote.appendChild(h('div', 'hint', 'Settlement is managed by the community guardian after payments are verified.'));
     bodyStack.appendChild(adminNote);
   }
+}
 
 function readFile(file) {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });

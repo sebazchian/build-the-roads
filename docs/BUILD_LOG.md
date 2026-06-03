@@ -116,7 +116,29 @@ Chronological decision + progress log. Newest at bottom.
 - All E2E flows passing. Cross-community isolation verified. Other services healthy.
 
 ### Next (Phase 2, not yet done)
-- Server-side Nostr signature verification (nostr-tools verifyEvent)
-- Pledge expiry automation; categories/geo filter
+- Server-side Nostr signature verification (nostr-tools verifyEvent) ✅ DONE
+- Pledge expiry automation; categories/geo filter ✅ DONE (expiry automation)
 - Localization (en/af/isiXhosa); public deploy + Fedi registration
 - Possible: install systemd service (needs sudo — will ask Jason)
+
+## 2026-06-03 ~04:30 UTC — Automatic bounty/pledge expiry
+
+**WHAT:** `expires_at` field existed in schema but was never enforced. Bounties could sit open forever.
+**FIX:**
+- `expireBounties()` function added to `lib/db.js`. Runs idempotently before every read + mutation.
+- Expired bounties → `status='expired'`. Their pledges → `status='expired'`.
+- Expired bounties reject new pledges with clear 400: "Bounty has expired — cannot pledge".
+- `claimBounty()`, `submitProof()`, `settleBounty()`, `payPledge()` all call `expireBounties()` first.
+
+**FRONTEND:**
+- Bounty cards show "X days left" / "Due today" / "Expired N days ago".
+- Create form has expiry dropdown: 1d, 3d, 1w, 2w, 30d (default 7d).
+- Detail view shows due date under title.
+- Expired bounties show a clear notice: "This bounty expired before anyone claimed it." No pledge/claim buttons.
+
+**TESTED:**
+1. Create expired bounty → immediately shows `status='expired'` on create.
+2. Create bounty with 60s expiry → pledge → wait 40s → auto-expires → pledges marked expired too.
+3. Pledge to expired bounty → HTTP 400: "Bounty has expired — cannot pledge".
+
+**COMMIT:** `d1a6371` — not pushed to GitHub (awaiting Jason approval).
