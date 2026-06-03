@@ -149,7 +149,9 @@ img{max-width:100%;display:block}
 }
 .pill-tabs button:hover{color:var(--ink)}
 .pill-tabs button.on{background:var(--bg-card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.pill-tabs button.action-alert{color:var(--accent)!important;border-color:var(--accent)!important;background:var(--accent-dim)!important}
 .btn.action-alert{color:var(--accent);border-color:var(--accent);background:var(--accent-dim)}
+.btn-sm.action-alert{color:var(--accent);border-color:var(--accent);background:var(--accent-dim)}
 
 /* ── Cards ── */
 .card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:calc(var(--s)*3);margin-bottom:calc(var(--s)*1.5)}

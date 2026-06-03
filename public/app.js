@@ -790,18 +790,8 @@ async function renderPending() {
       });
     }
 
-    // Admin: to verify
-    if (toVerify && toVerify.length) {
-      bodyStack.appendChild(h('div', 'overline overline-pad', 'Needs admin verification'));
-      toVerify.forEach(b => {
-        const card = DIV('card card-interactive');
-        card.onclick = () => go('/b/' + b.id);
-        card.appendChild(h('div', 'b-title', esc(b.title)));
-        if (b.proof_at) card.appendChild(h('div', 'hint', 'Proof sent ' + fmtDate(b.proof_at)));
-        card.appendChild(h('div', 'b-desc', fmtS(b.pot_sats) + ' in pledges'));
-        bodyStack.appendChild(card);
-      });
-    }
+    // Show settled bounties here too if we removed admin verification
+    // This space intentionally left blank — no admin section needed.
   } catch (e) { bodyStack.appendChild(emptyState('Could not load pending.', e.message)); }
 }
 
