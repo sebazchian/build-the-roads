@@ -642,35 +642,35 @@ function renderPhilosophy() {
   bodyStack.appendChild(DIV('card',
     h('div', 'overline', 'The old problem'),
     h('div', 'b-desc', '"Who will build the roads?" The question assumes only a government can coordinate public goods. But the real question is: who decides what gets built?'),
-    h('div', 'b-desc', 'In every community, the same thing happens. The hall needs painting. The gate is rusted. The sign fell down. Everyone agrees it should be fixed. But nobody fixes it.'),
+    h('div', 'b-desc', 'In every community, the same thing happens. A gate is rusted. Some sign fell down. While everyone agrees it should be fixed, nobody fixes it.'),
     h('div', 'b-desc', h('b', '', '"Everybody\'s job is nobody\'s job."'))
   ));
 
   bodyStack.appendChild(DIV('card',
     h('div', 'overline', 'The new answer'),
     h('div', 'b-desc', 'It becomes somebody\'s job when enough people are willing to pay for it.'),
-    h('div', 'b-desc', 'Not through taxes. Not through a committee. Through direct, voluntary pledges. Neighbours say: "I will pay 5 000 sats if someone paints that hall." When enough people say the same thing, a worker sees the pot, claims the job, does the work, and collects.'),
-    h('div', 'b-desc', 'No manager. No budget meeting. No waiting for permission. Just people who need things, people who can do things, and sats that move when work is proven.')
+    h('div', 'b-desc', 'Not through taxes or some committee. Through direct, voluntary pledges. Neighbours say, "I\'ll pay 5,000 sats if someone paints that hall." When enough people say the same thing, a worker sees the pot, does the work, and collects.'),
+    h('div', 'b-desc', 'No manager or budget meeting needed. No waiting for permission. Just people who need things, people who can do things, and sats that move when work is proven.')
   ));
 
   bodyStack.appendChild(DIV('card',
     h('div', 'overline', 'Why Bitcoin?'),
     h('div', 'b-desc', 'Sats are small enough that anyone can pledge. A few hundred sats is a meaningful signal. A few thousand is a real commitment. Lightning makes it instant and cheap.'),
     h('div', 'b-desc', 'More importantly: Bitcoin does not care who you are. No bank account needed. No ID. No credit check. If you have a phone and a Lightning wallet, you can pledge, work, and earn.'),
-    h('div', 'b-desc', 'This is financial inclusion in action. Not a charity. A market.')
+    h('div', 'b-desc', 'This is financial inclusion in action. It\'s not a charity but a market.')
   ));
 
   bodyStack.appendChild(DIV('card',
-    h('div', 'overline', 'Trust, not force'),
-    h('div', 'b-desc', 'We do not hold your money. You pledge with your word, backed by your reputation. If you do not pay, the community sees it. Your trust score drops. Workers stop trusting your pledges.'),
-    h('div', 'b-desc', 'This is stronger than a contract. It is social pressure, encoded.'),
-    h('div', 'b-desc', h('b', '', 'Workers:'), ' We cannot force anyone to pay. We can only show who keeps their word. Check a pledger\'s trust score before you claim a job. If they are flaky, the pot may look big but the trusted pot is small.')
+    h('div', 'overline', 'Earned trust, not force'),
+    h('div', 'b-desc', 'We do not hold your money. You pledge with your word, backed by your reputation through prior actions. If you do not pay, the community sees it. Your trust score drops. Workers stop trusting your pledges.'),
+    h('div', 'b-desc', 'This is stronger than a contract. It is proof of payment, encoded.'),
+    h('div', 'b-desc', h('b', '', 'Workers:'), ' We cannot force anyone to pay. We can only show who keeps their word. Check a pledger\'s trust score before you claim a job. If they are flaky, the pot may look big, but the trusted pot is smaller.')
   ));
 
   bodyStack.appendChild(DIV('card',
     h('div', 'overline', 'For the circular economy'),
     h('div', 'b-desc', 'This is not just about spending sats. It is about earning sats by solving real problems for real neighbours. The more problems get solved, the more useful Bitcoin becomes in your community. The more useful it becomes, the more people want it.'),
-    h('div', 'b-desc', 'This is how circular economies start. One job at a time.')
+    h('div', 'b-desc', 'This is how circular economies grow. One job at a time.')
   ));
 }
 
@@ -837,28 +837,48 @@ async function renderPicker() {
 }
 
 /* ── Boot ── */
+
+// Wait for Fedi/WebLN/Nostr to be injected (they may not be ready at page load)
+async function waitForWalletAPIs(timeoutMs = 1500, intervalMs = 100) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (hasNostr() || hasWebLN() || inFedi()) return true;
+    await new Promise(r => setTimeout(r, intervalMs));
+  }
+  return hasNostr() || hasWebLN() || inFedi();
+}
+
 function renderSignIn() {
   const app = $('app');
   renderHeader();
   const card = DIV('card empty');
   card.appendChild(h('b', '', 'Sign in'));
-  if (inFedi()) {
-    card.appendChild(h('p', '', 'Connect your Nostr identity to post, pledge, or claim bounties.'));
-    card.appendChild(BTN('btn', 'Connect Nostr', async () => {
-      try {
-        ME = await getPubkey();
-        if (!ME) return toast('Nostr not available', true);
-        MENAME = await getDisplayName();
-        route();
-      } catch (e) { toast(e.message, true); }
-    }));
-  } else {
-    card.appendChild(h('p', '', 'You are in a normal browser. Use a dev key for testing, or open this in the Fedi app for real Lightning + Nostr.'));
-    card.appendChild(DIV('gap-1',
-      BTN('btn', 'Use dev key', () => { ME = generateDevKey(); MENAME = 'Dev User'; route(); })
-    ));
-  }
+  card.appendChild(h('p', '', 'Checking for wallet…'));
   app.appendChild(card);
+
+  // Async: detect Fedi/WebLN/Nostr before showing dev key option
+  (async () => {
+    const hasWallet = await waitForWalletAPIs();
+    card.innerHTML = '';
+    card.appendChild(h('b', '', 'Sign in'));
+
+    if (hasWallet) {
+      card.appendChild(h('p', '', 'Connect your Nostr identity to post, pledge, or claim bounties.'));
+      card.appendChild(BTN('btn', 'Connect Nostr', async () => {
+        try {
+          ME = await getPubkey();
+          if (!ME) return toast('Nostr not available', true);
+          MENAME = await getDisplayName();
+          route();
+        } catch (e) { toast(e.message, true); }
+      }));
+    } else {
+      card.appendChild(h('p', '', 'No wallet or Nostr extension detected. You can use a dev key for testing, or open this in the Fedi app for real Lightning + Nostr.'));
+      card.appendChild(DIV('gap-1',
+        BTN('btn', 'Use dev key', () => { ME = generateDevKey(); MENAME = 'Dev User'; route(); })
+      ));
+    }
+  })();
 }
 
 (async function boot() {
@@ -866,10 +886,11 @@ function renderSignIn() {
   if (!COMMUNITY && !localStorage.getItem('m2s_community') && !new URLSearchParams(location.search).has('community')) {
     renderPicker(); return;
   }
+  // Try wallet immediately; if null, go to sign-in which will wait/retry
   try { ME = await getPubkey(); MENAME = await getDisplayName(); } catch {}
   if (!ME) { renderSignIn(); return; }
   if (!inFedi()) {
-    const ban = h('div', 'dev-banner', 'Dev mode  -  open in Fedi app for real Lightning + Nostr.');
+    const ban = h('div', 'dev-banner', 'Dev mode - open in Fedi app for real Lightning + Nostr.');
     document.querySelector('main').prepend(ban);
   }
   await route();
