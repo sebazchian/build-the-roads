@@ -64,9 +64,9 @@ img{max-width:100%;display:block}
 /* ── Layout ── */
 .wrap{max-width:var(--w);margin-inline:auto;padding:0 calc(var(--s)*3)}
 @media (max-width:480px){.wrap{padding:0 calc(var(--s)*2)}}
-.stack > * + *{margin-top:calc(var(--s)*3)}
-.stack-sm > * + *{margin-top:calc(var(--s)*2)}
-.stack-xs > * + *{margin-top:var(--s)}
+.stack{display:flex;flex-direction:column;gap:calc(var(--s)*3)}
+.stack-sm{display:flex;flex-direction:column;gap:calc(var(--s)*2)}
+.stack-xs{display:flex;flex-direction:column;gap:var(--s)}
 .padded{padding:calc(var(--s)*3) 0}
 
 /* ── Header ── */
@@ -83,8 +83,10 @@ img{max-width:100%;display:block}
 }
 @media (max-width:400px){
   .site-header .wrap{flex-wrap:wrap;gap:6px}
-  .brand .word .name{font-size:15px}
-  .brand .word .tag{font-size:9px;white-space:nowrap}
+  .brand .word .name{font-size:14px}
+  .brand .word .tag{font-size:8px;display:block;white-space:nowrap}
+  .brand .orb{width:26px;height:26px}
+  .brand .orb svg{width:14px;height:14px}
 }
 @media (max-width:640px){
   .header-meta .badge{max-width:120px;overflow:hidden;text-overflow:ellipsis}
@@ -142,9 +144,9 @@ img{max-width:100%;display:block}
 }
 
 /* ── Tabs ── */
-.pill-tabs{display:inline-flex;gap:3px;background:var(--bg-raised);padding:4px;border-radius:999px;border:1px solid var(--border)}
+.pill-tabs{display:inline-flex;gap:4px;background:var(--bg-raised);padding:5px;border-radius:999px;border:1px solid var(--border);margin-bottom:calc(var(--s)*1.5)}
 .pill-tabs button{
-  padding:7px 16px;border-radius:999px;font-size:13px;font-weight:600;
+  padding:8px 18px;border-radius:999px;font-size:13px;font-weight:600;
   color:var(--ink-dim);background:none;border:none;cursor:pointer;transition:.15s
 }
 .pill-tabs button:hover{color:var(--ink)}
@@ -154,8 +156,8 @@ img{max-width:100%;display:block}
 .btn-sm.action-alert{color:var(--accent);border-color:var(--accent);background:var(--accent-dim)}
 
 /* ── Cards ── */
-.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:calc(var(--s)*3)}
-@media (max-width:480px){.card{padding:calc(var(--s)*2)}}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:calc(var(--s)*3.5)}
+@media (max-width:480px){.card{padding:calc(var(--s)*3)}}
 .card-interactive{cursor:pointer;transition:border-color .15s}
 .card-interactive:hover{border-color:var(--border-hover)}
 .card .btn,.card .btn-ghost{margin-top:10px}
@@ -203,14 +205,14 @@ img{max-width:100%;display:block}
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:6px;
   font-family:var(--font);font-size:14px;font-weight:600;
-  padding:11px 20px;border-radius:var(--r-sm);border:none;cursor:pointer;
+  padding:12px 22px;border-radius:var(--r-sm);border:none;cursor:pointer;
   background:var(--accent);color:#fff;transition:.12s;text-decoration:none;
   -webkit-tap-highlight-color:transparent;
 }
 .btn:hover{opacity:.9}
 .btn:active{transform:scale(.98)}
 .btn:disabled{opacity:.4;cursor:not-allowed}
-.btn-ghost{background:transparent;color:var(--ink-dim);border:1px solid var(--border);padding:9px 16px}
+.btn-ghost{background:transparent;color:var(--ink-dim);border:1px solid var(--border);padding:10px 18px}
 .btn-ghost:hover{background:var(--bg-raised);color:var(--ink)}
 .btn-sm{padding:7px 14px;font-size:13px}
 
@@ -314,3 +316,9 @@ select{
 
 /* ── No-script ── */
 noscript .ns-banner{background:var(--red-dim);color:var(--red);padding:16px;text-align:center;font-weight:600}
+
+@media (max-width:360px){
+  .brand .word .name{font-size:13px}
+  .brand .word .tag{font-size:7px;display:block}
+  .brand .orb{width:24px;height:24px}
+}
