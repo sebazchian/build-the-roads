@@ -64,7 +64,7 @@ img{max-width:100%;display:block}
 /* ── Layout ── */
 .wrap{max-width:var(--w);margin-inline:auto;padding:0 calc(var(--s)*3)}
 @media (max-width:480px){.wrap{padding:0 calc(var(--s)*2)}}
-.stack{display:flex;flex-direction:column;gap:calc(var(--s)*3)}
+.stack{display:flex;flex-direction:column;gap:calc(var(--s)*3);margin:5px}
 .stack-sm{display:flex;flex-direction:column;gap:calc(var(--s)*2)}
 .stack-xs{display:flex;flex-direction:column;gap:var(--s)}
 .padded{padding:calc(var(--s)*3) 0}
@@ -88,35 +88,6 @@ img{max-width:100%;display:block}
   .brand .orb{width:26px;height:26px}
   .brand .orb svg{width:14px;height:14px}
 }
-@media (max-width:640px){
-  .header-meta .badge{max-width:120px;overflow:hidden;text-overflow:ellipsis}
-}
-
-.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);flex-shrink:0}
-.brand:hover{text-decoration:none}
-.brand .orb{width:30px;height:30px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.brand .orb svg{width:16px;height:16px}
-.brand .word{line-height:1.15;min-width:0}
-.brand .word .name{font-weight:800;font-size:17px;letter-spacing:-.02em}
-.brand .word .tag{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-dim)}
-
-.header-meta{
-  display:flex;flex-direction:column;align-items:flex-end;gap:2px;
-  text-align:right;min-width:0;overflow:hidden;
-}
-.header-meta .up{font-weight:600;font-size:12px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
-.header-meta .down{font-size:10px;font-family:ui-monospace,SFMono-Regular,monospace;color:var(--ink-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
-.header-meta .badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-dim);padding:4px 10px;border-radius:999px;margin-top:2px;white-space:nowrap}
-
-.badge-change{
-  margin-left:4px;font-size:10px;color:var(--ink-muted);
-  background:none;border:none;cursor:pointer;padding:2px 6px;
-  border-left:1px solid rgba(255,255,255,.1);white-space:nowrap
-}
-.badge-change:hover{color:var(--ink)}
-
-.header-actions{display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto}
-@media (max-width:400px){.header-actions{margin-left:0}}
 
 /* ── Trust ── */
 .trust{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:999px;white-space:nowrap}

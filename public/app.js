@@ -155,24 +155,18 @@ function renderHeader() {
   brand.onclick = e => { if (e.button === 0) { go('/'); return false; }};
   hd.appendChild(brand);
 
-  const meta = DIV('header-meta');
+  const actions = DIV('header-actions');
   if (COMMUNITY) {
     const badge = DIV('badge', cName(COMMUNITY));
     const change = BTN('badge-change', 'change', () => { setCommunity(null); route(); });
     badge.appendChild(change);
-    meta.appendChild(badge);
+    actions.appendChild(badge);
   }
   if (ME) {
-    meta.appendChild(h('div', 'up', esc(MENAME || short(ME))));
-    meta.appendChild(h('div', 'down', short(ME)));
     const pendingBtn = BTN('btn btn-ghost btn-sm' + (ACTION_COUNT > 0 ? ' action-alert' : ''), 'To-do', () => go('/pending'));
-    pendingBtn.style.marginLeft = '8px';
-    meta.appendChild(pendingBtn);
+    actions.appendChild(pendingBtn);
   }
-  const phil = BTN('btn btn-ghost btn-sm', 'Why?', () => go('/philosophy'));
-  phil.style.marginLeft = '8px';
-  meta.appendChild(phil);
-  hd.appendChild(meta);
+  hd.appendChild(actions);
 }
 
 /* ── Shared components ── */
@@ -238,6 +232,7 @@ async function renderHome(filter) {
   renderHeader();
 
   const stack = DIV('stack');
+  stack.appendChild(h('h1', 't1', 'What needs doing?'));
   stack.appendChild(makeTabs(filter === 'open' ? 'open' : 'all'));
   wrap.appendChild(stack);
 
