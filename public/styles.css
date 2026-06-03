@@ -244,6 +244,8 @@ select{
 .pl-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;gap:8px}
 .pl-who{display:flex;align-items:center;gap:7px;min-width:0;flex-wrap:wrap}
 .pl-paid{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--green);background:var(--green-dim);padding:2px 7px;border-radius:999px;white-space:nowrap}
+.pl-pending{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--amber);background:var(--accent-dim);padding:2px 7px;border-radius:999px;white-space:nowrap}
+.pl-reneged{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--red);background:var(--red-dim);padding:2px 7px;border-radius:999px;white-space:nowrap}
 .pl-addr{font-size:11px;font-family:ui-monospace,SFMono-Regular,monospace;color:var(--ink-muted);min-width:0;overflow:hidden;text-overflow:ellipsis}
 .pl-amt{font-weight:600;font-size:13px;color:var(--ink);white-space:nowrap;flex-shrink:0}
 

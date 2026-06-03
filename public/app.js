@@ -367,6 +367,22 @@ async function renderDetail(id) {
   const myPledge = b.pledges.find(p => p.pledger_pubkey === ME);
   const isWorker = b.worker_pubkey === ME;
 
+  // Worker trust + flags (shown on all bounties where worker exists)
+  if (b.worker_pubkey) {
+    const isFlagged = (b.flags || []).length > 0;
+    const flagCount = isFlagged ? b.flags.length : 0;
+    const workerCard = DIV('card');
+    const wTrust = await loadTrust(b.worker_pubkey);
+    workerCard.appendChild(DIV('b-row',
+      h('span', '', 'Worker: ' + short(b.worker_pubkey)),
+      trustBadge(wTrust)
+    ));
+    if (flagCount > 0) {
+      workerCard.appendChild(h('div', 'hint', '\u26A0\uFE0F ' + flagCount + ' flag' + (flagCount !== 1 ? 's' : '') + ' from pledgers'));
+    }
+    bodyStack.appendChild(workerCard);
+  }
+
   const cat = CAT_MAP[b.category] || CAT_MAP.other;
 
   const bodyStack = DIV('stack');
@@ -395,9 +411,13 @@ async function renderDetail(id) {
     b.pledges.forEach(p => {
       const trustSlot = h('span', 'trust-slot');
       trustSlot.dataset.pk = p.pledger_pubkey;
+      const statusLabel = p.status === 'paid' ? h('span', 'pl-paid', 'paid') :
+                         p.status === 'reneged' ? h('span', 'pl-reneged', 'reneged') :
+                         p.status === 'payment_claimed' ? h('span', 'pl-pending', 'pending') :
+                         null;
       const row = DIV('pl-row',
         DIV('pl-who',
-          p.status === 'paid' ? h('span', 'pl-paid', 'paid') : null,
+          statusLabel,
           h('span', 'pl-addr', short(p.pledger_pubkey)),
           trustSlot
         ),
@@ -713,12 +733,19 @@ async function renderLeaderboard() {
     const lb = await api('/leaderboards');
 
     bodyStack.appendChild(h('div', 'overline', 'Hardest workers'));
-    if (!lb.topWorkers.length) bodyStack.appendChild(emptyState('No jobs done yet.', 'Be the first.'));
-    else lb.topWorkers.forEach((r, i) => bodyStack.appendChild(rankRow(i + 1, short(r.pubkey), r.jobs + ' done', i === 0)));
+    if (!lb.topWorkers.length) bodyStack.appendChild(emptyState('No workers yet.', 'Claim a job and complete it to show up here.'));
+    else lb.topWorkers.forEach((r, i) => {
+      const completion = r.jobs > 0 ? Math.round((r.completed || 0) / r.jobs * 100) + '%' : '0%';
+      bodyStack.appendChild(rankRow(i + 1, short(r.pubkey), `${r.completed || 0}/${r.jobs} done (${completion})`, i === 0));
+    });
 
     bodyStack.appendChild(h('div', 'overline overline-pad', 'Most reliable pledgers'));
-    if (!lb.topReliable.length) bodyStack.appendChild(emptyState('Not enough data yet.', 'Need at least 3 settled pledges per person.'));
-    else lb.topReliable.forEach((r, i) => bodyStack.appendChild(rankRow(i + 1, short(r.pubkey), (r.reliability_pct ?? 0) + '% (' + fmtS(r.paid_sats) + ' paid)', i === 0)));
+    if (!lb.topReliable.length) bodyStack.appendChild(emptyState('No pledgers yet.', 'Make a pledge and honor it to show up here.'));
+    else lb.topReliable.forEach((r, i) => {
+      const badge = r.reliability_pct >= 90 ? 'Reliable' : r.reliability_pct >= 60 ? 'Mixed' : 'Flaky';
+      const right = `${r.reliability_pct ?? 0}% ${badge} · ${fmtS(r.paid_sats)} paid · ${fmtS(r.reneged_sats || 0)} reneged`;
+      bodyStack.appendChild(rankRow(i + 1, short(r.pubkey), right, i === 0));
+    });
   } catch (e) { bodyStack.appendChild(emptyState('Error', e.message)); }
 }
 
