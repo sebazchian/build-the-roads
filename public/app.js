@@ -128,6 +128,7 @@ function route() {
   else if (h === '/all') renderHome(null);
   else if (h === '/new') renderNew();
   else if (h === '/leaderboard') renderLeaderboard();
+  else if (h === '/pending') renderPending();
   else if (h.startsWith('/b/')) renderDetail(h.slice(3));
   else renderHome('open');
 }
@@ -154,6 +155,9 @@ function renderHeader() {
   if (ME) {
     meta.appendChild(h('div', 'up', esc(MENAME || short(ME))));
     meta.appendChild(h('div', 'down', short(ME)));
+    const pendingBtn = BTN('btn btn-ghost btn-sm', '⏳ Pending', () => go('/pending'));
+    pendingBtn.style.marginLeft = '8px';
+    meta.appendChild(pendingBtn);
   }
   const phil = BTN('btn btn-ghost btn-sm', 'Why?', () => go('/philosophy'));
   phil.style.marginLeft = '8px';
@@ -170,6 +174,7 @@ function makeTabs(active) {
   };
   wrap.appendChild(mk('Open', '/open', active === 'open'));
   wrap.appendChild(mk('All', '/all', active === 'all'));
+  wrap.appendChild(mk('⏳', '/pending', active === 'pending'));
   wrap.appendChild(mk('🏆', '/leaderboard', active === 'leaderboard'));
   return wrap;
 }
@@ -479,6 +484,11 @@ async function renderDetail(id) {
   if (b.status === 'claimed' && isWorker) {
     const pf = DIV('card');
     pf.appendChild(h('div', 'overline', 'Submit proof'));
+    if (b.claim_deadline) {
+      const daysLeft = Math.ceil((b.claim_deadline - Math.floor(Date.now()/1000)) / 86400);
+      const warn = daysLeft <= 0 ? '\u26A0\uFE0F Due today!' : daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' left to submit';
+      pf.appendChild(h('div', 'hint', warn));
+    }
     pf.appendChild(hint('Photo or note showing the work is done. Once submitted, pledgers will be asked to pay you.'));
     const pImg = h('input', ''); pImg.type = 'file'; pImg.accept = 'image/*'; pf.appendChild(pImg);
     pf.appendChild(h('label', 'field-label', 'What did you do?'));
@@ -510,6 +520,8 @@ async function renderDetail(id) {
       try {
         let b64 = null; if (pImg.files[0]) b64 = await readFile(pImg.files[0]);
         await api(`/bounties/${id}/proof`, { method: 'POST', body: { image_base64: b64, proof_note: pNote.value.trim(), worker_invoice: pInv.value.trim() } });
+        // Generate invoices for pledgers automatically
+        api(`/bounties/${id}/invoices`, { method: 'POST' }).catch(() => {});
         toast('Proof sent — pledgers will be notified.'); renderDetail(id);
       } catch (e) {
         toast(e.message, true);
@@ -534,39 +546,62 @@ async function renderDetail(id) {
     if (myPledge && myPledge.status === 'pledged') {
       const pay = DIV('card');
       pay.appendChild(h('div', 'overline', 'Your turn to pay'));
+
+      // Deadline notice
+      if (b.payment_deadline) {
+        const daysLeft = Math.ceil((b.payment_deadline - Math.floor(Date.now()/1000)) / 86400);
+        const deadlineText = daysLeft <= 0 ? 'Due today' : daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' left to pay';
+        pay.appendChild(h('div', 'hint', deadlineText));
+      }
+
       pay.appendChild(h('div', 'b-desc', 'You pledged ' + fmtS(myPledge.amount_sats) + '. The work is done — honour your pledge.'));
 
-      if (b.worker_invoice) {
-        const lnAddr = b.worker_invoice; // Lightning address (user@domain)
+      if (myPledge.invoice_request || b.worker_invoice) {
         const invBox = DIV('invoice-box');
-        invBox.appendChild(h('div', 'hint', 'Send ' + fmtS(myPledge.amount_sats) + ' to:'));
-        invBox.appendChild(h('div', 'invoice-text', esc(lnAddr)));
-        const copyRow = DIV('gap-1');
-        copyRow.appendChild(BTN('btn btn-ghost btn-sm', '\u{1F4CB} Copy', () => { copyToClipboard(lnAddr); toast('Copied'); }));
-        if (hasWebLN()) {
-          copyRow.appendChild(BTN('btn btn-sm', '\u26A1 Pay now', async () => {
-            try {
-              const result = await resolveInvoiceFromAddress(lnAddr, myPledge.amount_sats, 'my two sats bounty');
-              let preimage = 'manual';
-              if (result.invoice) {
-                preimage = await payInvoice(result.invoice);
-              } else if (result.preimage) {
-                preimage = result.preimage;
-              }
-              await api(`/pledges/${myPledge.id}/pay`, { method: 'POST', body: { preimage } });
-              toast('Paid! Waiting on admin to verify.'); renderDetail(id);
-            } catch (e) { toast(e.message === 'NO_WEBLN' ? 'Wallet not connected' : e.message, true); }
-          }));
+        const invoiceToShow = myPledge.invoice_request || null;
+        if (invoiceToShow) {
+          invBox.appendChild(h('div', 'hint', 'Use your Lightning wallet to pay this invoice:'));
+          invBox.appendChild(h('div', 'invoice-text', esc(invoiceToShow)));
+          const copyRow = DIV('gap-1');
+          copyRow.appendChild(BTN('btn btn-ghost btn-sm', '\u{1F4CB} Copy invoice', () => { copyToClipboard(invoiceToShow); toast('Copied'); }));
+          // WebLN auto-pay with pre-generated invoice
+          if (hasWebLN()) {
+            copyRow.appendChild(BTN('btn btn-sm', '\u26A1 Pay now', async () => {
+              try {
+                const preimage = await payInvoice(invoiceToShow);
+                await api(`/pledges/${myPledge.id}/autopay`, { method: 'POST', body: { preimage } });
+                toast('Paid! Your trust score will update.'); renderDetail(id);
+              } catch (e) { toast(e.message === 'NO_WEBLN' ? 'Wallet not connected' : e.message, true); }
+            }));
+          }
+          invBox.appendChild(copyRow);
+        } else if (b.worker_invoice) {
+          invBox.appendChild(h('div', 'hint', 'Worker Lightning address:'));
+          invBox.appendChild(h('div', 'invoice-text', esc(b.worker_invoice)));
+          const copyRow = DIV('gap-1');
+          copyRow.appendChild(BTN('btn btn-ghost btn-sm', '\u{1F4CB} Copy address', () => { copyToClipboard(b.worker_invoice); toast('Copied'); }));
+          if (hasWebLN()) {
+            copyRow.appendChild(BTN('btn btn-sm', '\u26A1 Pay', async () => {
+              try {
+                const result = await resolveInvoiceFromAddress(b.worker_invoice, myPledge.amount_sats, 'my two sats bounty');
+                let preimage = 'manual';
+                if (result.invoice) { preimage = await payInvoice(result.invoice); }
+                else if (result.preimage) { preimage = result.preimage; }
+                await api(`/pledges/${myPledge.id}/autopay`, { method: 'POST', body: { preimage } });
+                toast('Paid!'); renderDetail(id);
+              } catch (e) { toast(e.message === 'NO_WEBLN' ? 'Wallet not connected' : e.message, true); }
+            }));
+          }
+          invBox.appendChild(copyRow);
         }
-        invBox.appendChild(copyRow);
         pay.appendChild(invBox);
       } else {
-        pay.appendChild(h('div', 'hint', 'The worker has not provided a Lightning address yet. Send them ' + fmtS(myPledge.amount_sats) + ' however you can, then tap "I paid" below.'));
+        pay.appendChild(h('div', 'hint', 'The worker has not provided a payment address yet.'));
       }
 
       const payActions = DIV('stack-xs');
       payActions.style.marginTop = '12px';
-      payActions.appendChild(BTN('btn', '\u2705 I paid', async () => {
+      payActions.appendChild(BTN('btn', '\u2705 I paid manually', async () => {
         await api(`/pledges/${myPledge.id}/pay`, { method: 'POST', body: { preimage: 'manual' } });
         toast('Payment reported — the community will verify it.'); renderDetail(id);
       }));
@@ -674,6 +709,80 @@ async function renderLeaderboard() {
 
 function rankRow(pos, addr, right, gold) {
   return DIV('rank', h('span', 'n' + (gold ? ' gold' : ''), '#' + pos), h('span', 'a', addr), h('span', 'r', right));
+}
+
+/* ================================================================
+   PENDING TAB — what needs action from me
+   ================================================================ */
+async function renderPending() {
+  const w = $('app');
+  renderHeader();
+
+  const lead = DIV('stack padded');
+  lead.appendChild(backLink('/open', 'Open needs'));
+  lead.appendChild(h('h1', 't1', 'Pending'));
+  lead.appendChild(h('p', 'body', 'Jobs you claimed, payments you owe, and things to verify.'));
+  w.appendChild(lead);
+
+  const bodyStack = DIV('stack');
+  w.appendChild(bodyStack);
+
+  try {
+    const { toClaim, toPay, toVerify } = await api('/pending?pubkey=' + encodeURIComponent(ME));
+
+    // Jobs to prove
+    bodyStack.appendChild(h('div', 'overline', 'Jobs you claimed'));
+    if (!toClaim.length) {
+      bodyStack.appendChild(emptyState('Nothing to prove.', 'Jobs appear here after you claim them.'));
+    } else {
+      toClaim.forEach(b => bodyStack.appendChild(pendingCard(b, 'claim')));
+    }
+
+    // Payments to make
+    bodyStack.appendChild(h('div', 'overline overline-pad', 'Payments you owe'));
+    if (!toPay.length) {
+      bodyStack.appendChild(emptyState('Nothing to pay.', 'Pledges appear here after work is submitted.'));
+    } else {
+      toPay.forEach(p => {
+        const card = DIV('card card-interactive');
+        card.onclick = () => go('/b/' + p.bounty_id);
+        card.appendChild(h('div', 'b-title', esc(p.bounty_title)));
+        if (p.payment_deadline) {
+          const daysLeft = Math.ceil((p.payment_deadline - Math.floor(Date.now()/1000)) / 86400);
+          card.appendChild(h('div', 'hint', daysLeft <= 0 ? 'Due today' : daysLeft + 'd left'));
+        }
+        card.appendChild(h('div', 'b-desc', fmtS(p.amount_sats)));
+        if (p.invoice_request) {
+          card.appendChild(h('div', 'invoice-text', esc(p.invoice_request.slice(0, 40) + '...')));
+        }
+        bodyStack.appendChild(card);
+      });
+    }
+
+    // Admin: to verify
+    if (toVerify && toVerify.length) {
+      bodyStack.appendChild(h('div', 'overline overline-pad', 'Needs admin verification'));
+      toVerify.forEach(b => {
+        const card = DIV('card card-interactive');
+        card.onclick = () => go('/b/' + b.id);
+        card.appendChild(h('div', 'b-title', esc(b.title)));
+        if (b.proof_at) card.appendChild(h('div', 'hint', 'Proof sent ' + fmtDate(b.proof_at)));
+        card.appendChild(h('div', 'b-desc', fmtS(b.pot_sats) + ' in pledges'));
+        bodyStack.appendChild(card);
+      });
+    }
+  } catch (e) { bodyStack.appendChild(emptyState('Could not load pending.', e.message)); }
+}
+
+function pendingCard(b, type) {
+  const card = DIV('card card-interactive');
+  card.onclick = () => go('/b/' + b.id);
+  card.appendChild(h('div', 'b-title', esc(b.title)));
+  if (type === 'claim' && b.claim_deadline) {
+    const daysLeft = Math.ceil((b.claim_deadline - Math.floor(Date.now()/1000)) / 86400);
+    card.appendChild(h('div', 'hint', daysLeft <= 0 ? 'Due today' : daysLeft + 'd to prove'));
+  }
+  return card;
 }
 
 /* ================================================================

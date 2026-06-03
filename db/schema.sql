@@ -26,69 +26,72 @@ CREATE TABLE IF NOT EXISTS bounties (
   description   TEXT NOT NULL,
   category      TEXT,                        -- cleanup | painting | repair | other
   creator_pubkey TEXT NOT NULL,
-  threshold_sats INTEGER NOT NULL DEFAULT 0, -- DEPRECATED: kept for backward compat, always 0
-  expires_at    INTEGER,                     -- optional unix ts; pledges expire if unclaimed
-  community_id TEXT NOT NULL DEFAULT 'default',
+  threshold_sats INTEGER NOT NULL DEFAULT 0, -- DEPRECATED
+  expires_at    INTEGER,                     -- unix ts; auto-expires bounty if unclaimed
+  community_id  TEXT NOT NULL DEFAULT 'default',
   status        TEXT NOT NULL DEFAULT 'open',-- open | claimed | proof_submitted | settled | cancelled | expired
   worker_pubkey TEXT,                        -- set when claimed
-  worker_invoice TEXT,                       -- Worker's Lightning address (user@domain or node@host) from Fedi/Alby; NOT a raw BOLT11
-  proof_image   TEXT,                        -- relative path to uploaded proof
+  worker_invoice TEXT,                       -- Worker's LN address (user@domain)
+  proof_image   TEXT,
   proof_note    TEXT,
   proof_at      INTEGER,
   claimed_at    INTEGER,
   settled_at    INTEGER,
   created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+  -- v3 migration: claim_deadline (work due), payment_deadline (sats due)
+  claim_deadline INTEGER,
+  payment_deadline INTEGER,
   FOREIGN KEY (creator_pubkey) REFERENCES users(pubkey)
 );
 CREATE INDEX IF NOT EXISTS idx_bounties_status ON bounties(status);
 CREATE INDEX IF NOT EXISTS idx_bounties_community ON bounties(community_id, status);
 CREATE INDEX IF NOT EXISTS idx_bounties_created ON bounties(created_at);
 
--- Pledges: a commitment of sats toward a bounty. Provable via signed Nostr event.
+-- Pledges: a commitment of sats toward a bounty.
 CREATE TABLE IF NOT EXISTS pledges (
-  id            TEXT PRIMARY KEY,            -- uuid
+  id            TEXT PRIMARY KEY,
   bounty_id     TEXT NOT NULL,
   pledger_pubkey TEXT NOT NULL,
   amount_sats   INTEGER NOT NULL,
-  -- proof of intent: signed nostr event (NIP-07 signEvent output)
-  sig_event_id  TEXT,                        -- signed event id
-  sig           TEXT,                        -- schnorr signature
-  sig_event_json TEXT,                       -- full JSON event for server-side verifyEvent
-  sig_verified  INTEGER NOT NULL DEFAULT 0,  -- 1 = server verified event id+sig
+  sig_event_id  TEXT,
+  sig           TEXT,
+  sig_event_json TEXT,
+  sig_verified  INTEGER NOT NULL DEFAULT 0,
   status        TEXT NOT NULL DEFAULT 'pledged', -- pledged | payment_claimed | paid | reneged | refunded | expired
   paid_at       INTEGER,
-  payment_preimage TEXT,                     -- WebLN sendPayment proof / preimage
-  verified_by   TEXT,                        -- admin pubkey who verified/reneged the payment
-  verified_at   INTEGER,                     -- when admin verified
+  payment_preimage TEXT,
+  verified_by   TEXT,
+  verified_at   INTEGER,
   created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+  -- v3 migration: auto-generated BOLT11 invoice for this pledger
+  invoice_request TEXT,
   FOREIGN KEY (bounty_id) REFERENCES bounties(id),
   FOREIGN KEY (pledger_pubkey) REFERENCES users(pubkey),
-  UNIQUE (bounty_id, pledger_pubkey)         -- one pledge per person per bounty (can be updated)
+  UNIQUE (bounty_id, pledger_pubkey)
 );
 CREATE INDEX IF NOT EXISTS idx_pledges_bounty ON pledges(bounty_id);
 CREATE INDEX IF NOT EXISTS idx_pledges_pledger ON pledges(pledger_pubkey);
 
 -- Communities: self-service community creation.
 CREATE TABLE IF NOT EXISTS communities (
-  id            TEXT PRIMARY KEY,            -- URL-safe slug (bitcoin-ekasi, mytown)
-  name          TEXT NOT NULL,               -- human-readable name
+  id            TEXT PRIMARY KEY,
+  name          TEXT NOT NULL,
   description   TEXT,
-  region        TEXT,                        -- optional geographic hint
-  admin_pubkey  TEXT NOT NULL,               -- creator / first admin
+  region        TEXT,
+  admin_pubkey  TEXT NOT NULL,
   created_at    INTEGER NOT NULL DEFAULT (unixepoch())
 );
 CREATE INDEX IF NOT EXISTS idx_communities_id ON communities(id);
 
--- Seed default community so bounties table FK stays happy
 INSERT OR IGNORE INTO communities (id, name, description, admin_pubkey)
   VALUES ('default', 'Sandbox', 'Default community for testing', '0000000000000000000000000000000000000000000000000000000000000000');
 
--- Flags: pledgers flagging bad/fake work, or community flagging a bad pledger.
+-- Flags: pledgers flagging bad/fake work.
 CREATE TABLE IF NOT EXISTS flags (
   id            TEXT PRIMARY KEY,
   bounty_id     TEXT NOT NULL,
   flagger_pubkey TEXT NOT NULL,
-  target_pubkey TEXT NOT NULL,               -- who is being flagged
+  target_pubkey TEXT NOT NULL,
   reason        TEXT,
   created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
   FOREIGN KEY (bounty_id) REFERENCES bounties(id)

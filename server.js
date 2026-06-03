@@ -217,7 +217,47 @@ const server = createServer(async (req, res) => {
       const bounty = db.submitProof(proofMatch[1], {
         proof_image: imagePath, proof_note: body.proof_note, worker_invoice: body.worker_invoice,
       });
-      return send(res, 200, { bounty });
+      // Auto-pay: if preimage provided (from WebLN sendPayment), mark all this user's pledges as paid
+      if (body.preimage && isPubkey(body.worker_pubkey)) {
+        const b = db.getBounty(proofMatch[1], bounty.community_id);
+        for (const pl of b.pledges) {
+          if (pl.pledger_pubkey === body.worker_pubkey && pl.status === 'pledged') {
+            db.autoPayPledge(pl.id, body.preimage);
+          }
+        }
+      }
+      return send(res, 200, { bounty: db.getBounty(proofMatch[1], bounty.community_id) });
+    }
+
+    // Generate BOLT11 invoice for each pledge on a proof_submitted bounty
+    // Called by frontend when worker submits proof (server resolves LNURL)
+    const invoiceMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/invoices$/);
+    if (invoiceMatch && req.method === 'POST') {
+      const { resolveInvoiceFromAddress } = await import('./lib/lnurl.js');
+      const id = invoiceMatch[1];
+      const b = db.getBounty(id, getCid());
+      if (!b) return send(res, 404, { error: 'Bounty not found' });
+      if (b.status !== 'proof_submitted') return send(res, 400, { error: 'Bounty is not awaiting payment' });
+      if (!b.worker_invoice) return send(res, 400, { error: 'Worker has no Lightning address' });
+      const results = [];
+      for (const pl of b.pledges.filter(p => p.status === 'pledged')) {
+        try {
+          const { pr } = await resolveInvoiceFromAddress(b.worker_invoice, pl.amount_sats, 'my two sats: ' + b.title);
+          db.storePledgeInvoice(pl.id, pr);
+          results.push({ pledge_id: pl.id, invoice: pr });
+        } catch (e) {
+          results.push({ pledge_id: pl.id, error: e.message });
+        }
+      }
+      return send(res, 200, { invoices: results, bounty: db.getBounty(id, b.community_id) });
+    }
+
+    // Auto-pay: pledger pays via pre-generated invoice, server records it (or preimage from WebLN)
+    const autoPayMatch = p.match(/^\/api\/pledges\/([0-9a-f-]{36})\/autopay$/);
+    if (autoPayMatch && req.method === 'POST') {
+      const body = await readJson(req);
+      const pledge = db.autoPayPledge(autoPayMatch[1], body.preimage || 'auto');
+      return send(res, 200, { pledge });
     }
 
     const payMatch = p.match(/^\/api\/pledges\/([0-9a-f-]{36})\/pay$/);
@@ -300,6 +340,14 @@ const server = createServer(async (req, res) => {
       if (!isPubkey(pk)) return send(res, 400, { error: 'pubkey required' });
       const owned = db.listCommunities().filter(c => c.admin_pubkey === pk);
       return send(res, 200, { communities: owned });
+    }
+
+    if (p === '/api/pending' && req.method === 'GET') {
+      const pk = url.searchParams.get('pubkey');
+      const cid = getCid();
+      if (!isPubkey(pk)) return send(res, 400, { error: 'pubkey required' });
+      const pending = db.pendingForUser(pk, cid);
+      return send(res, 200, pending);
     }
 
     // ── uploads & static ──
