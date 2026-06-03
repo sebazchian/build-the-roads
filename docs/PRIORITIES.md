@@ -1,4 +1,4 @@
-# my two sats — Priorities & Guardrails
+# Bounty — Priorities & Guardrails
 
 These keep us from getting sidetracked or crashing and burning. Re-read at the start of every work block.
 
@@ -12,7 +12,7 @@ These keep us from getting sidetracked or crashing and burning. Re-read at the s
 
 ## Port Assignment
 
-- **my two sats dev server: PORT 3005** (unused — verified 2026-06-02). NEVER reuse 3000-3004.
+- **Bounty dev server: PORT 3005** (unused — verified 2026-06-02). NEVER reuse 3000-3004.
 
 ## Hard Rules
 
@@ -25,7 +25,7 @@ These keep us from getting sidetracked or crashing and burning. Re-read at the s
 ## Anti-Derail Checklist (before each session)
 
 - [ ] Are the 5 other services still up? (`ss -tlnp | grep -E ':300[0-4]|:18789'`)
-- [ ] Am I working ONLY inside `~/.openclaw/workspace/mytwosats`?
+- [ ] Am I working ONLY inside `~/.openclaw/workspace/bounty`?
 - [ ] Is the current task on the MVP critical path, or am I gold-plating?
 - [ ] Did I update BUILD_LOG.md?
 

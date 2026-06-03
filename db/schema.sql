@@ -1,4 +1,4 @@
--- my two sats — SQLite schema
+-- Bounty — SQLite schema
 -- Identity is the user's Nostr pubkey (hex). No passwords.
 
 PRAGMA journal_mode = WAL;

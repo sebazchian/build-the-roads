@@ -1,5 +1,5 @@
 [Unit]
-Description=my two sats — community bounty board (Fedi mini app)
+Description=Bounty - community bounty board (Fedi mini app)
 After=network.target
 
 [Service]

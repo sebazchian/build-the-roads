@@ -1,4 +1,4 @@
-# my two sats — Data Model & Trust Score
+# Bounty — Data Model & Trust Score
 
 ## Entities
 

@@ -1,5 +1,5 @@
 /**
- * my two sats — server
+ * Bounty — server
  * Plain Node http: REST API + static frontend + proof uploads.
  * Port 3005 (does NOT collide with DC 3000/3001, StackMon 3002, SCARP 3003, NostrScope 3004, gateway 18789)
  */
@@ -110,7 +110,7 @@ const server = createServer(async (req, res) => {
   try {
     // ── API ──
     if (p === '/api/health') {
-      return send(res, 200, { status: 'ok', service: 'my two sats', ts: Math.floor(Date.now() / 1000) });
+      return send(res, 200, { status: 'ok', service: 'Bounty', ts: Math.floor(Date.now() / 1000) });
     }
 
     if (p === '/api/bounties' && req.method === 'GET') {
@@ -242,7 +242,7 @@ const server = createServer(async (req, res) => {
       const results = [];
       for (const pl of b.pledges.filter(p => p.status === 'pledged')) {
         try {
-          const { pr } = await resolveInvoiceFromAddress(b.worker_invoice, pl.amount_sats, 'my two sats: ' + b.title);
+          const { pr } = await resolveInvoiceFromAddress(b.worker_invoice, pl.amount_sats, 'Bounty: ' + b.title);
           db.storePledgeInvoice(pl.id, pr);
           results.push({ pledge_id: pl.id, invoice: pr });
         } catch (e) {
@@ -363,5 +363,5 @@ const server = createServer(async (req, res) => {
 
 db.getDb(); // init + health on boot
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`💸 my two sats running on http://0.0.0.0:${PORT}`);
+  console.log(`💸 Bounty running on http://0.0.0.0:${PORT}`);
 });

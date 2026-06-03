@@ -1,4 +1,4 @@
-# my two sats — Build Log
+# Bounty — Build Log
 
 Chronological decision + progress log. Newest at bottom.
 
@@ -6,7 +6,7 @@ Chronological decision + progress log. Newest at bottom.
 
 - Jason commissioned a community bounty board as a Fedi mini app. Funded in sats, reputation/trust-score based (not escrow), built first for Bitcoin Ekasi (Mossel Bay, SA).
 - Researched Fedi mini-app architecture. Key finding: mini app = plain website inside Fedi browser, with `window.webln` / `window.nostr` / `window.fedi` injected. No SDK.
-- Decided working name: **"my two sats"** (pun on "my two cents", humble contribution framing).
+- Decided working name: **"Bounty"** (pun on "my two cents", humble contribution framing).
 - Established docs: PROJECT.md (charter), PRIORITIES.md (guardrails), this BUILD_LOG.md.
 - Port assignment: **3005** (verified free). Other services (3000-3004, 18789) untouched.
 - .gitignore set up first — DB files & secrets never tracked (DC data-loss lesson).
@@ -99,7 +99,7 @@ Chronological decision + progress log. Newest at bottom.
 - **End-to-end test PASSED**: bounty(8k threshold) → 2x5k pledges → claim → proof → P1 pays / P2 reneges → settle → trust scores correct (P1 100%, P2 0%, worker 100%) → leaderboards populate.
 - Wiped test DB; shipped clean. Server running fresh (users=0).
 - Verified all other services unaffected (3000/3001/3002/3003/3004/18789 all healthy throughout).
-- Added mytwosats.service (systemd, hardened, auto-restart) and README.md.
+- Added bounty.service (systemd, hardened, auto-restart) and README.md.
 - NOTE: pkill scare — broad `pkill -f "node server.js"` was SIGTERM'd by shell before executing; confirmed no other service harmed. LESSON: never use broad pkill patterns; target by cwd/PID. Will use precise pgrep-by-cwd going forward.
 
 ## 2026-06-02 ~14:30 UTC — Full UI/UX ground-up rewrite

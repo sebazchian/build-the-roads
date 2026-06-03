@@ -1,4 +1,4 @@
-/* my two sats — clean, no-weird-links */
+/* Bounty — clean, no-weird-links */
 import { getPubkey, getDisplayName, signAction, makeInvoice, payInvoice, getLightningAddress, resolveInvoiceFromAddress, inFedi, hasWebLN, hasNostr, generateDevKey, copyToClipboard } from './fedi.js';
 
 /* ── State ── */
@@ -150,7 +150,7 @@ function renderHeader() {
 
   const orb = h('span', 'orb');
   orb.appendChild(makeBrandOrb());
-  const brand = h('a', 'brand', orb, DIV('word', h('div', 'name', 'my two sats'), h('div', 'tag', 'community bounty board')));
+  const brand = h('a', 'brand', orb, DIV('word', h('div', 'name', 'Bounty'), h('div', 'tag', 'neighbor-funded')));
   brand.href = '#/';
   brand.onclick = e => { if (e.button === 0) { go('/'); return false; }};
   hd.appendChild(brand);
@@ -593,7 +593,7 @@ async function renderDetail(id) {
           if (hasWebLN()) {
             copyRow.appendChild(BTN('btn btn-sm', '\u26A1 Pay', async () => {
               try {
-                const result = await resolveInvoiceFromAddress(b.worker_invoice, myPledge.amount_sats, 'my two sats bounty');
+                const result = await resolveInvoiceFromAddress(b.worker_invoice, myPledge.amount_sats, 'Bounty bounty');
                 let preimage = 'manual';
                 if (result.invoice) { preimage = await payInvoice(result.invoice); }
                 else if (result.preimage) { preimage = result.preimage; }

@@ -1,9 +1,9 @@
-# my two sats — Project Charter
+# Bounty — Project Charter
 
 **Status:** Active (started 2026-06-02)
 **Owner:** Jason
 **Builder:** Sebastian (AI agent)
-**Working name:** "my two sats" (candidates: everybody's job / you will build the roads / nobody's jobs / my two sats)
+**Working name:** "Bounty" (candidates: everybody's job / you will build the roads / nobody's jobs / Bounty)
 
 ---
 
@@ -75,7 +75,7 @@ Escrow is technically complex and adds friction. Fedi communities are built on *
 
 Strong written material on:
 - How this solves the **"who will build the roads?"** problem (the classic objection that without coercive taxation, public goods go unfunded). Answer: voluntary, transparent, micro-coordinated sats pledges + reputation.
-- The **"responsibility poem"** ("Everybody, Somebody, Anybody, Nobody") — and how my two sats adds a missing element: it turns diffuse responsibility into a concrete, funded, claimable task. A **symbiotic loop** between community *needs* and community *service*.
+- The **"responsibility poem"** ("Everybody, Somebody, Anybody, Nobody") — and how Bounty adds a missing element: it turns diffuse responsibility into a concrete, funded, claimable task. A **symbiotic loop** between community *needs* and community *service*.
 
 ## Success Definition
 

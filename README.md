@@ -1,8 +1,8 @@
-# my two sats ◎
+# Bounty ◎
 
 A community bounty board funded in sats — a **Fedi mini app**. Neighbors pledge sats toward shared needs (trash cleanup, painting, repairs); a worker provably claims and completes the task; pledgers pay out; and a **trust score** tracks who actually pays. It solves the free-rider problem for hyper-local public goods.
 
-> *Two sats from each of us. A whole community's worth of work.*
+> Small pledges. Real work. Nobody forced.
 
 Built first for **Bitcoin Ekasi** (Mossel Bay, South Africa).
 
@@ -17,7 +17,7 @@ npm install
 node server.js   # http://localhost:3005
 ```
 
-Or install the systemd unit (`mytwosats.service`) for auto-restart.
+Or install the systemd unit (`bounty.service`) for auto-restart.
 
 ## How it's a Fedi mini app
 
