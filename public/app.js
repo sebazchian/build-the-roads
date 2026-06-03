@@ -636,12 +636,6 @@ async function renderDetail(id) {
 
       const payActions = DIV('stack-xs');
       payActions.style.marginTop = '12px';
-      payActions.appendChild(BTN('btn btn-ghost btn-sm', '\u2705 I paid manually', async () => {
-        const preimage = prompt('Paste the payment preimage (from your wallet) to prove you paid:');
-        if (!preimage || !preimage.trim()) { toast('Preimage required for verification', true); return; }
-        await api(`/pledges/${myPledge.id}/pay`, { method: 'POST', body: { preimage: preimage.trim() } });
-        toast('Payment recorded. Preimage stored for verification.'); renderDetail(id);
-      }));
       payActions.appendChild(BTN('btn btn-ghost', 'Flag as bad work', async () => {
         await api(`/bounties/${id}/flag`, { method: 'POST', body: { flagger_pubkey: ME, target_pubkey: b.worker_pubkey, reason: 'bad work' } });
         toast('Flagged.'); renderDetail(id);
