@@ -1,5 +1,5 @@
 /**
- * Lightweight i18n for Bounty
+ * Lightweight i18n for build the roads
  * Supports en (default), af (Afrikaans), xh (isiXhosa)
  * Detects: ?lang= URL param → window.fedi?.locale → navigator.language
  */

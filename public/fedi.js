@@ -12,7 +12,7 @@ export async function getPubkey() {
   if (window.nostr?.getPublicKey) {
     try { return await window.nostr.getPublicKey(); } catch (e) { console.warn('nostr.getPublicKey failed', e); }
   }
-  return null; // no silent fallback — caller must handle
+  return null; // no silent fallback  -  caller must handle
 }
 
 export function generateDevKey() {

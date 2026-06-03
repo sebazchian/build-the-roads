@@ -1,10 +1,8 @@
-# Bounty ◎
+# build the roads
 
 A community bounty board funded in sats — a **Fedi mini app**. Neighbors pledge sats toward shared needs (trash cleanup, painting, repairs); a worker provably claims and completes the task; pledgers pay out; and a **trust score** tracks who actually pays. It solves the free-rider problem for hyper-local public goods.
 
 > Small pledges. Real work. Nobody forced.
-
-Built first for **Bitcoin Ekasi** (Mossel Bay, South Africa).
 
 ## Status: MVP working (2026-06-02)
 
@@ -38,7 +36,7 @@ A Fedi mini app is just a website that runs inside the Fedi browser, which injec
 ## Docs
 
 - `docs/PROJECT.md` — charter & MVP scope
-- `docs/PRIORITIES.md` — guardrails (don't break other projects, port map, anti-derail checklist)
+- `docs/PRIORITIES.md` — guardrails
 - `docs/SCHEMA.md` — data model + trust score algorithm
 - `docs/NARRATIVE.md` — the "who will build the roads" / responsibility-poem literature
 - `docs/BUILD_LOG.md` — decision log
@@ -50,20 +48,13 @@ A Fedi mini app is just a website that runs inside the Fedi browser, which injec
 | GET | `/api/bounties?status=` | list bounties |
 | POST | `/api/bounties` | create bounty |
 | GET | `/api/bounties/:id` | bounty detail (pot, trust-weighted pot, pledges) |
-| POST | `/api/bounties/:id/pledge` | pledge sats (signed) |
-| POST | `/api/bounties/:id/claim` | claim task (signed) |
-| POST | `/api/bounties/:id/proof` | submit proof photo + invoice |
-| POST | `/api/pledges/:id/pay` | record WebLN payment |
-| POST | `/api/bounties/:id/settle` | close & settle |
-| POST | `/api/bounties/:id/flag` | flag bad work/pledger |
-| GET | `/api/users/:pubkey` | trust profile |
-| GET | `/api/leaderboards` | top workers & funders |
-
-## Not done yet (Phase 2)
-
-- Nostr signature **verification** server-side (currently stored, not verified)
-- Pledge expiry automation
-- Categories filter / geo
-- Nostr DM notifications
-- Localization (en/af/isiXhosa for Mossel Bay)
-- Public deployment + Fedi community registration
+| POST | `/api/bounties/:id/pledge` | pledge sats |
+| POST | `/api/bounties/:id/claim` | claim bounty (worker) |
+| POST | `/api/bounties/:id/proof` | submit proof (worker) |
+| POST | `/api/pledges/:id/pay` | report payment (pledger) |
+| POST | `/api/pledges/:id/autopay` | record webln preimage (automatic payout) |
+| GET | `/api/users/:pubkey` | trust + leaderboards |
+| GET | `/api/leaderboards` | top workers + top pledgers |
+| GET | `/api/pending?pubkey=` | my pending actions |
+| POST | `/api/invoices/generate` | generate BOLT11 for pledges |
+| GET | `/api/health` | service health |

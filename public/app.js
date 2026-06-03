@@ -1,9 +1,8 @@
-/* Bounty — clean, no-weird-links */
+/* build the roads  -  clean, no-weird-links */
 import { getPubkey, getDisplayName, signAction, makeInvoice, payInvoice, getLightningAddress, resolveInvoiceFromAddress, inFedi, hasWebLN, hasNostr, generateDevKey, copyToClipboard } from './fedi.js';
 
 /* ── State ── */
 let ME=null, MENAME=null, COMMUNITY=null, ALL_COMMUNITIES=[];
-let ACTION_COUNT=0; // cached pending items for header/tab styling
 
 /* ── DOM builders ── */
 const $ = id => document.getElementById(id);
@@ -26,7 +25,7 @@ const BTN = (cls, txt, on) => { const b = h('button', cls, txt); if (on) b.oncli
 
 /* ── Helpers ── */
 const esc = s => String(s || '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-const short = pk => pk ? pk.slice(0, 5) + '…' + pk.slice(-4) : '—';
+const short = pk => pk ? pk.slice(0, 5) + '…' + pk.slice(-4) : ' - ';
 const fmt = n => (n || 0).toLocaleString();
 const fmtS = n => fmt(n) + ' sats';
 const fmtDate = ts => {
@@ -89,14 +88,6 @@ const api = async (path, opts = {}) => {
   return j;
 };
 
-async function refreshActionCount() {
-  if (!ME) { ACTION_COUNT = 0; return; }
-  try {
-    const { toClaim, toPay, toVerify } = await api('/pending?pubkey=' + encodeURIComponent(ME));
-    ACTION_COUNT = (toClaim?.length || 0) + (toPay?.length || 0) + (toVerify?.length || 0);
-  } catch (e) { ACTION_COUNT = 0; }
-}
-
 /* ── Community ── */
 function resolveCommunity() {
   COMMUNITY = new URLSearchParams(location.search).get('community')
@@ -118,7 +109,7 @@ async function loadCommunities() {
 }
 function cName(id) {
   const c = ALL_COMMUNITIES.find(x => x.id === id);
-  return c ? c.name : (id ? id.charAt(0).toUpperCase() + id.slice(1) : '—');
+  return c ? c.name : (id ? id.charAt(0).toUpperCase() + id.slice(1) : ' - ');
 }
 
 /* ── Router ── */
@@ -133,7 +124,6 @@ function route() {
   if (h === '/philosophy') { renderPhilosophy(); return; }
   if (!COMMUNITY) { renderPicker(); return; }
   if (!ME) { renderSignIn(); return; }
-  refreshActionCount(); // update badge count before rendering
   if (h === '/' || h === '/open') renderHome('open');
   else if (h === '/all') renderHome(null);
   else if (h === '/new') renderNew();
@@ -150,7 +140,7 @@ function renderHeader() {
 
   const orb = h('span', 'orb');
   orb.appendChild(makeBrandOrb());
-  const brand = h('a', 'brand', orb, DIV('word', h('div', 'name', 'Bounty'), h('div', 'tag', 'neighbor-funded')));
+  const brand = h('a', 'brand', orb, DIV('word', h('div', 'name', 'build the roads'), h('div', 'tag', 'community bounty board')));
   brand.href = '#/';
   brand.onclick = e => { if (e.button === 0) { go('/'); return false; }};
   hd.appendChild(brand);
@@ -165,7 +155,7 @@ function renderHeader() {
   if (ME) {
     meta.appendChild(h('div', 'up', esc(MENAME || short(ME))));
     meta.appendChild(h('div', 'down', short(ME)));
-    const pendingBtn = BTN('btn btn-ghost btn-sm' + (ACTION_COUNT > 0 ? ' action-alert' : ''), 'Action' + (ACTION_COUNT > 0 ? ' (' + ACTION_COUNT + ')' : ''), () => go('/pending'));
+    const pendingBtn = BTN('btn btn-ghost btn-sm', '⏳ Pending', () => go('/pending'));
     pendingBtn.style.marginLeft = '8px';
     meta.appendChild(pendingBtn);
   }
@@ -178,13 +168,13 @@ function renderHeader() {
 /* ── Shared components ── */
 function makeTabs(active) {
   const wrap = DIV('pill-tabs');
-  const mk = (label, href, on, alert) => {
-    const b = BTN(on ? 'on' : '' + (alert ? ' action-alert' : ''), label, () => go(href));
+  const mk = (label, href, on) => {
+    const b = BTN(on ? 'on' : '', label, () => go(href));
     return b;
   };
   wrap.appendChild(mk('Open', '/open', active === 'open'));
   wrap.appendChild(mk('All', '/all', active === 'all'));
-  wrap.appendChild(mk('Action' + (ACTION_COUNT > 0 ? ' (' + ACTION_COUNT + ')' : ''), '/pending', active === 'pending', ACTION_COUNT > 0));
+  wrap.appendChild(mk('⏳', '/pending', active === 'pending'));
   wrap.appendChild(mk('🏆', '/leaderboard', active === 'leaderboard'));
   return wrap;
 }
@@ -219,10 +209,10 @@ function hint(text) {
 function howItWorks() {
   return DIV('card help',
     h('div', 'help-title', '🤝 How it works'),
-    h('div', 'help-step', h('span', 'num', '1'), h('div', '', h('b', '', 'Someone posts a need.'), ' — Paint the hall, fix the gate, clean the lot.')),
-    h('div', 'help-step', h('span', 'num', '2'), h('div', '', h('b', '', 'Neighbours chip in sats.'), ' — Pledge a small amount. If the work gets done, you pay.')),
-    h('div', 'help-step', h('span', 'num', '3'), h('div', '', h('b', '', 'A worker claims it.'), ' — They do the job and send proof.')),
-    h('div', 'help-step', h('span', 'num', '4'), h('div', '', h('b', '', 'Pledgers pay up.'), ' — Everyone who promised sends sats to the worker.')),
+    h('div', 'help-step', h('span', 'num', '1'), h('div', '', h('b', '', 'Someone posts a need.'), '  -  Paint the hall, fix the gate, clean the lot.')),
+    h('div', 'help-step', h('span', 'num', '2'), h('div', '', h('b', '', 'Neighbours chip in sats.'), '  -  Pledge a small amount. If the work gets done, you pay.')),
+    h('div', 'help-step', h('span', 'num', '3'), h('div', '', h('b', '', 'A worker claims it.'), '  -  They do the job and send proof.')),
+    h('div', 'help-step', h('span', 'num', '4'), h('div', '', h('b', '', 'Pledgers pay up.'), '  -  Everyone who promised sends sats to the worker.')),
     h('div', 'help-foot', 'No upfront escrow. You hold your own money until the work is done. If someone does not pay, the community remembers.')
   );
 }
@@ -235,7 +225,7 @@ async function renderHome(filter) {
   const wrap = $('app');
   renderHeader();
 
-  const stack = DIV('stack padded');
+  const stack = DIV('stack');
   stack.appendChild(DIV('', h('h1', 't1', 'Your neighbour needs something done.'), h('p', 'body', 'You need a few sats.')));
   stack.appendChild(makeTabs(filter === 'open' ? 'open' : 'all'));
   wrap.appendChild(stack);
@@ -297,7 +287,7 @@ function renderNew() {
   const w = $('app');
   renderHeader();
 
-  const stack = DIV('stack padded');
+  const stack = DIV('stack');
   stack.appendChild(backLink('/open', 'Open needs'));
   stack.appendChild(DIV('', h('h1', 't1', 'What needs doing?'), h('p', 'body', "Describe it like you're telling a neighbour.")));
   w.appendChild(stack);
@@ -355,7 +345,7 @@ async function renderDetail(id) {
   const w = $('app');
   renderHeader();
 
-  const lead = DIV('stack padded');
+  const lead = DIV('stack');
   lead.appendChild(backLink('/open', 'Open needs'));
   w.appendChild(lead);
 
@@ -437,7 +427,7 @@ async function renderDetail(id) {
     ));
   }
 
-  // Actions — open
+  // Actions  -  open
   if (b.status === 'open') {
     const pledgeCard = DIV('card');
     pledgeCard.appendChild(h('div', 'overline', 'Your pledge'));
@@ -477,7 +467,7 @@ async function renderDetail(id) {
         try {
           const sig = await signAction('Claim', { kind: 'm2s-claim', bounty: b.id });
           await api(`/bounties/${id}/claim`, { method: 'POST', body: { worker_pubkey: ME, display_name: MENAME, community_id: COMMUNITY, ...sig } });
-          toast('Claimed.'); refreshActionCount(); renderDetail(id);
+          toast('Claimed.'); renderDetail(id);
         } catch (e) {
           toast(e.message, true);
           claimBtn.disabled = false;
@@ -490,7 +480,7 @@ async function renderDetail(id) {
     }
   }
 
-  // Actions — claimed (worker proof)
+  // Actions  -  claimed (worker proof)
   if (b.status === 'claimed' && isWorker) {
     const pf = DIV('card');
     pf.appendChild(h('div', 'overline', 'Submit proof'));
@@ -502,7 +492,7 @@ async function renderDetail(id) {
     pf.appendChild(hint('Photo or note showing the work is done. Once submitted, pledgers will be asked to pay you.'));
     const pImg = h('input', ''); pImg.type = 'file'; pImg.accept = 'image/*'; pf.appendChild(pImg);
     pf.appendChild(h('label', 'field-label', 'What did you do?'));
-    const pNote = h('textarea', ''); pNote.placeholder = 'Describe the work — what you did, how it looks now.'; pNote.style.marginBottom = '4px'; pf.appendChild(pNote);
+    const pNote = h('textarea', ''); pNote.placeholder = 'Describe the work  -  what you did, how it looks now.'; pNote.style.marginBottom = '4px'; pf.appendChild(pNote);
 
     // Lightning address: auto-fetch from Fedi/Alby wallet, allow manual override
     pf.appendChild(h('label', 'field-label', 'Your Lightning address'));
@@ -532,7 +522,7 @@ async function renderDetail(id) {
         await api(`/bounties/${id}/proof`, { method: 'POST', body: { image_base64: b64, proof_note: pNote.value.trim(), worker_invoice: pInv.value.trim() } });
         // Generate invoices for pledgers automatically
         api(`/bounties/${id}/invoices`, { method: 'POST' }).catch(() => {});
-        toast('Proof sent — pledgers will be notified.'); refreshActionCount(); renderDetail(id);
+        toast('Proof sent  -  pledgers will be notified.'); renderDetail(id);
       } catch (e) {
         toast(e.message, true);
         submitPfBtn.disabled = false;
@@ -544,7 +534,7 @@ async function renderDetail(id) {
     bodyStack.appendChild(pf);
   }
 
-  // Actions — proof submitted
+  // Actions  -  proof submitted
   if (b.status === 'proof_submitted') {
     if (b.proof_image || b.proof_note) {
       const pr = DIV('card');
@@ -564,7 +554,7 @@ async function renderDetail(id) {
         pay.appendChild(h('div', 'hint', deadlineText));
       }
 
-      pay.appendChild(h('div', 'b-desc', 'You pledged ' + fmtS(myPledge.amount_sats) + '. The work is done — honour your pledge.'));
+      pay.appendChild(h('div', 'b-desc', 'You pledged ' + fmtS(myPledge.amount_sats) + '. The work is done  -  honour your pledge.'));
 
       if (myPledge.invoice_request || b.worker_invoice) {
         const invBox = DIV('invoice-box');
@@ -580,7 +570,7 @@ async function renderDetail(id) {
               try {
                 const preimage = await payInvoice(invoiceToShow);
                 await api(`/pledges/${myPledge.id}/autopay`, { method: 'POST', body: { preimage } });
-                toast('Paid! Your trust score will update.'); refreshActionCount(); renderDetail(id);
+                toast('Paid! Your trust score will update.'); renderDetail(id);
               } catch (e) { toast(e.message === 'NO_WEBLN' ? 'Wallet not connected' : e.message, true); }
             }));
           }
@@ -593,12 +583,12 @@ async function renderDetail(id) {
           if (hasWebLN()) {
             copyRow.appendChild(BTN('btn btn-sm', '\u26A1 Pay', async () => {
               try {
-                const result = await resolveInvoiceFromAddress(b.worker_invoice, myPledge.amount_sats, 'Bounty bounty');
+                const result = await resolveInvoiceFromAddress(b.worker_invoice, myPledge.amount_sats, 'build the roads bounty');
                 let preimage = 'manual';
                 if (result.invoice) { preimage = await payInvoice(result.invoice); }
                 else if (result.preimage) { preimage = result.preimage; }
                 await api(`/pledges/${myPledge.id}/autopay`, { method: 'POST', body: { preimage } });
-                toast('Paid!'); refreshActionCount(); renderDetail(id);
+                toast('Paid!'); renderDetail(id);
               } catch (e) { toast(e.message === 'NO_WEBLN' ? 'Wallet not connected' : e.message, true); }
             }));
           }
@@ -613,7 +603,7 @@ async function renderDetail(id) {
       payActions.style.marginTop = '12px';
       payActions.appendChild(BTN('btn', '\u2705 I paid manually', async () => {
         await api(`/pledges/${myPledge.id}/pay`, { method: 'POST', body: { preimage: 'manual' } });
-        toast('Payment reported — the community will verify it.'); refreshActionCount(); renderDetail(id);
+        toast('Payment reported  -  the community will verify it.'); renderDetail(id);
       }));
       payActions.appendChild(BTN('btn btn-ghost', 'Flag as bad work', async () => {
         await api(`/bounties/${id}/flag`, { method: 'POST', body: { flagger_pubkey: ME, target_pubkey: b.worker_pubkey, reason: 'bad work' } });
@@ -648,7 +638,7 @@ function renderPhilosophy() {
   const w = $('app');
   renderHeader();
 
-  const lead = DIV('stack padded');
+  const lead = DIV('stack');
   lead.appendChild(backLink('/open', 'Open needs'));
   lead.appendChild(h('h1', 't1', 'Why this works'));
   w.appendChild(lead);
@@ -695,10 +685,10 @@ async function renderLeaderboard() {
   const w = $('app');
   renderHeader();
 
-  const lead = DIV('stack padded');
+  const lead = DIV('stack');
   lead.appendChild(backLink('/open', 'Open needs'));
   lead.appendChild(h('h1', 't1', 'Community heroes'));
-  lead.appendChild(h('p', 'body', 'The people who show up — and the people who pay up.'));
+  lead.appendChild(h('p', 'body', 'The people who show up  -  and the people who pay up.'));
   w.appendChild(lead);
 
   const bodyStack = DIV('stack');
@@ -722,13 +712,13 @@ function rankRow(pos, addr, right, gold) {
 }
 
 /* ================================================================
-   PENDING TAB — what needs action from me
+   PENDING TAB  -  what needs action from me
    ================================================================ */
 async function renderPending() {
   const w = $('app');
   renderHeader();
 
-  const lead = DIV('stack padded');
+  const lead = DIV('stack');
   lead.appendChild(backLink('/open', 'Open needs'));
   lead.appendChild(h('h1', 't1', 'Pending'));
   lead.appendChild(h('p', 'body', 'Jobs you claimed, payments you owe, and things to verify.'));
@@ -803,7 +793,7 @@ async function renderPicker() {
   const w = $('app');
   renderHeader();
 
-  const lead = DIV('stack padded');
+  const lead = DIV('stack');
   const prev = localStorage.getItem('m2s_prev_community');
   if (prev) {
     lead.appendChild(BTN('btn btn-ghost btn-sm', '← Cancel', () => { setCommunity(prev); route(); }));
@@ -886,7 +876,7 @@ function renderSignIn() {
   try { ME = await getPubkey(); MENAME = await getDisplayName(); } catch {}
   if (!ME) { renderSignIn(); return; }
   if (!inFedi()) {
-    const ban = h('div', 'dev-banner', 'Dev mode — open in Fedi app for real Lightning + Nostr.');
+    const ban = h('div', 'dev-banner', 'Dev mode  -  open in Fedi app for real Lightning + Nostr.');
     document.querySelector('main').prepend(ban);
   }
   route();

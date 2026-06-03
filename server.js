@@ -1,5 +1,5 @@
 /**
- * Bounty — server
+ * build the roads - server
  * Plain Node http: REST API + static frontend + proof uploads.
  * Port 3005 (does NOT collide with DC 3000/3001, StackMon 3002, SCARP 3003, NostrScope 3004, gateway 18789)
  */
@@ -110,7 +110,7 @@ const server = createServer(async (req, res) => {
   try {
     // ── API ──
     if (p === '/api/health') {
-      return send(res, 200, { status: 'ok', service: 'Bounty', ts: Math.floor(Date.now() / 1000) });
+      return send(res, 200, { status: 'ok', service: 'build the roads', ts: Math.floor(Date.now() / 1000) });
     }
 
     if (p === '/api/bounties' && req.method === 'GET') {
@@ -142,7 +142,7 @@ const server = createServer(async (req, res) => {
       return b ? send(res, 200, { bounty: b }) : send(res, 404, { error: 'not found' });
     }
 
-    // pledge — enforce Nostr sig (prod: hard reject; dev: warn+accept)
+    // pledge  -  enforce Nostr sig (prod: hard reject; dev: warn+accept)
     const pledgeMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/pledge$/);
     if (pledgeMatch && req.method === 'POST') {
       const body = await readJson(req);
@@ -151,7 +151,7 @@ const server = createServer(async (req, res) => {
       if (!amt || amt < 1) return send(res, 400, { error: 'amount_sats must be >= 1' });
       let sigVerified = false;
       if (!body.sig_event || typeof body.sig_event !== 'object') {
-        if (isProd) return send(res, 403, { error: 'Nostr signature required — open this in the Fedi app.' });
+        if (isProd) return send(res, 403, { error: 'Nostr signature required  -  open this in the Fedi app.' });
         console.warn('[server] DEV: pledge without Nostr signature from', body.pledger_pubkey.slice(0, 12));
       } else {
         const v = verifyNostrEvent(body.sig_event, body.pledger_pubkey);
@@ -175,14 +175,14 @@ const server = createServer(async (req, res) => {
       return send(res, 201, { pledge, bounty: db.getBounty(pledgeMatch[1], cid) });
     }
 
-    // claim — enforce Nostr sig
+    // claim  -  enforce Nostr sig
     const claimMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/claim$/);
     if (claimMatch && req.method === 'POST') {
       const body = await readJson(req);
       if (!isPubkey(body.worker_pubkey)) return send(res, 400, { error: 'valid worker_pubkey required' });
       let sigVerified = false;
       if (!body.sig_event || typeof body.sig_event !== 'object') {
-        if (isProd) return send(res, 403, { error: 'Nostr signature required — open this in the Fedi app.' });
+        if (isProd) return send(res, 403, { error: 'Nostr signature required  -  open this in the Fedi app.' });
         console.warn('[server] DEV: claim without Nostr signature from', body.worker_pubkey.slice(0, 12));
       } else {
         const v = verifyNostrEvent(body.sig_event, body.worker_pubkey);
@@ -198,7 +198,7 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { bounty });
     }
 
-    // proof — with image magic-number validation
+    // proof  -  with image magic-number validation
     const proofMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/proof$/);
     if (proofMatch && req.method === 'POST') {
       const body = await readJson(req);
@@ -242,7 +242,7 @@ const server = createServer(async (req, res) => {
       const results = [];
       for (const pl of b.pledges.filter(p => p.status === 'pledged')) {
         try {
-          const { pr } = await resolveInvoiceFromAddress(b.worker_invoice, pl.amount_sats, 'Bounty: ' + b.title);
+          const { pr } = await resolveInvoiceFromAddress(b.worker_invoice, pl.amount_sats, 'build the roads: ' + b.title);
           db.storePledgeInvoice(pl.id, pr);
           results.push({ pledge_id: pl.id, invoice: pr });
         } catch (e) {
@@ -363,5 +363,5 @@ const server = createServer(async (req, res) => {
 
 db.getDb(); // init + health on boot
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`💸 Bounty running on http://0.0.0.0:${PORT}`);
+  console.log(`💸 build the roads running on http://0.0.0.0:${PORT}`);
 });
