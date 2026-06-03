@@ -135,10 +135,13 @@ img{max-width:100%;display:block}
 }
 
 /* ── Tabs ── */
-.pill-tabs{display:inline-flex;gap:4px;background:var(--bg-raised);padding:5px;border-radius:999px;border:1px solid var(--border);margin:16px 0}
+.pill-tabs{display:inline-flex;gap:4px;background:var(--bg-raised);padding:5px;border-radius:999px;border:1px solid var(--border);margin:16px 0;white-space:nowrap}
 .pill-tabs button{
   padding:8px 18px;border-radius:999px;font-size:13px;font-weight:600;
-  color:var(--ink-dim);background:none;border:none;cursor:pointer;transition:.15s
+  color:var(--ink-dim);background:none;border:none;cursor:pointer;transition:.15s;white-space:nowrap
+}
+@media (max-width:400px){
+  .pill-tabs button{padding:6px 12px;font-size:12px}
 }
 .pill-tabs button:hover{color:var(--ink)}
 .pill-tabs button.on{background:var(--bg-card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.2)}
