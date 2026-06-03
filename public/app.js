@@ -638,7 +638,7 @@ async function renderDetail(id) {
       payActions.style.marginTop = '12px';
       payActions.appendChild(BTN('btn', '\u2705 I paid manually', async () => {
         await api(`/pledges/${myPledge.id}/pay`, { method: 'POST', body: { preimage: 'manual' } });
-        toast('Payment reported  -  the community will verify it.'); renderDetail(id);
+        toast('Payment confirmed. Your trust score will update.'); renderDetail(id);
       }));
       payActions.appendChild(BTN('btn btn-ghost', 'Flag as bad work', async () => {
         await api(`/bounties/${id}/flag`, { method: 'POST', body: { flagger_pubkey: ME, target_pubkey: b.worker_pubkey, reason: 'bad work' } });
@@ -647,18 +647,7 @@ async function renderDetail(id) {
       pay.appendChild(payActions);
       bodyStack.appendChild(pay);
     }
-    // Payment claimed, awaiting admin verification
-    if (myPledge && myPledge.status === 'payment_claimed') {
-      const pending = DIV('card');
-      pending.appendChild(h('div', 'overline', 'Payment reported'));
-      pending.appendChild(h('div', 'b-desc', 'Your payment of ' + fmtS(myPledge.amount_sats) + ' has been reported and is waiting to be verified by the community guardian. Your trust score will update once confirmed.'));
-      bodyStack.appendChild(pending);
-    }
-    // NOTE: Settlement ("Close bounty") is intentionally NOT shown here.
-    // The community guardian settles via admin API only, after verifying payments.
-    const adminNote = DIV('card');
-    adminNote.appendChild(h('div', 'hint', 'Settlement is managed by the community guardian after payments are verified.'));
-    bodyStack.appendChild(adminNote);
+    // When all pledges are paid, the bounty auto-settles. No admin needed.
   }
 }
 
