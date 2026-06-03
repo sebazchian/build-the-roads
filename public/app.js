@@ -112,9 +112,10 @@ function route() {
   const app = $('app');
   app.innerHTML = '';
   const h = location.hash.slice(1) || '/';
-  // Allow philosophy even without community
+  resolveCommunity();
   if (h === '/philosophy') { renderPhilosophy(); return; }
   if (!COMMUNITY) { renderPicker(); return; }
+  if (!ME) { renderSignIn(); return; }
   if (h === '/' || h === '/open') renderHome('open');
   else if (h === '/all') renderHome(null);
   else if (h === '/new') renderNew();
@@ -138,7 +139,7 @@ function renderHeader() {
   const meta = DIV('header-meta');
   if (COMMUNITY) {
     const badge = DIV('badge', cName(COMMUNITY));
-    const change = BTN('badge-change', 'change', () => { setCommunity(null); go('/'); });
+    const change = BTN('badge-change', 'change', () => { setCommunity(null); route(); });
     badge.appendChild(change);
     meta.appendChild(badge);
   }
@@ -361,8 +362,14 @@ async function renderDetail(id) {
   if (b.pledges.length) {
     const pl = DIV('pl-list');
     b.pledges.forEach(p => {
+      const trustSlot = h('span', 'trust-slot');
+      trustSlot.dataset.pk = p.pledger_pubkey;
       const row = DIV('pl-row',
-        DIV('pl-who', p.status === 'paid' ? h('span', 'pl-paid', 'paid') : null, h('span', 'pl-addr', short(p.pledger_pubkey)), h('span', 'trust-slot', { 'data-pk': p.pledger_pubkey })),
+        DIV('pl-who',
+          p.status === 'paid' ? h('span', 'pl-paid', 'paid') : null,
+          h('span', 'pl-addr', short(p.pledger_pubkey)),
+          trustSlot
+        ),
         h('span', 'pl-amt', fmtS(p.amount_sats))
       );
       pl.appendChild(row);
@@ -372,8 +379,13 @@ async function renderDetail(id) {
     setTimeout(() => {
       b.pledges.forEach(async p => {
         const t = await loadTrust(p.pledger_pubkey);
-        const slot = pot.querySelector('.trust-slot[data-pk="' + p.pledger_pubkey + '"]');
-        if (slot && t) slot.replaceWith(trustBadge(t));
+        const slots = pot.querySelectorAll('.trust-slot');
+        for (const slot of slots) {
+          if (slot.dataset.pk === p.pledger_pubkey && t) {
+            slot.replaceWith(trustBadge(t));
+            break;
+          }
+        }
       });
     }, 0);
   }
