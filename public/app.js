@@ -271,7 +271,7 @@ function bountyCard(b) {
 
   card.appendChild(DIV('b-row',
     h('span', 'tag ' + cat.cls, esc(cat.label)),
-    h('span', 'tag-status tag-' + b.status, esc({ open: 'Open', claimed: 'Claimed', proof_submitted: 'Proof sent', settled: 'Done', payment_claimed: 'Awaiting verification', cancelled: 'Cancelled', expired: 'Expired' }[b.status] || b.status))
+    h('span', 'tag-status tag-' + b.status, esc({ open: 'Open', claimed: 'Claimed', proof_submitted: 'Proof sent', settled: 'Done', cancelled: 'Cancelled', expired: 'Expired' }[b.status] || b.status))
   ));
   card.appendChild(h('div', 'b-title', esc(b.title)));
   card.appendChild(h('div', 'b-desc', esc(b.description)));
@@ -402,7 +402,7 @@ async function renderDetail(id) {
   const pot = DIV('card');
   pot.appendChild(DIV('b-row',
     h('span', 'b-nums', h('span', 'big', fmt(b.pot_sats)), ' sats'),
-    h('span', 'tag-status tag-' + b.status, esc({ open: 'Open', claimed: 'Claimed', proof_submitted: 'Proof sent', settled: 'Done', payment_claimed: 'Awaiting verification' }[b.status] || b.status))
+    h('span', 'tag-status tag-' + b.status, esc({ open: 'Open', claimed: 'Claimed', proof_submitted: 'Proof sent', settled: 'Done' }[b.status] || b.status))
   ));
   if (b.effective_pot_sats !== b.pot_sats)
     pot.appendChild(h('div', 'b-nums', '~' + fmt(b.effective_pot_sats) + ' trusted pot'));
@@ -636,9 +636,9 @@ async function renderDetail(id) {
 
       const payActions = DIV('stack-xs');
       payActions.style.marginTop = '12px';
-      payActions.appendChild(BTN('btn', '\u2705 I paid manually', async () => {
+      payActions.appendChild(BTN('btn btn-ghost btn-sm', '\u2705 I paid manually', async () => {
         await api(`/pledges/${myPledge.id}/pay`, { method: 'POST', body: { preimage: 'manual' } });
-        toast('Payment confirmed. Your trust score will update.'); renderDetail(id);
+        toast('Payment reported. The community can verify it.'); renderDetail(id);
       }));
       payActions.appendChild(BTN('btn btn-ghost', 'Flag as bad work', async () => {
         await api(`/bounties/${id}/flag`, { method: 'POST', body: { flagger_pubkey: ME, target_pubkey: b.worker_pubkey, reason: 'bad work' } });
@@ -647,7 +647,6 @@ async function renderDetail(id) {
       pay.appendChild(payActions);
       bodyStack.appendChild(pay);
     }
-    // When all pledges are paid, the bounty auto-settles. No admin needed.
   }
 }
 
@@ -790,8 +789,6 @@ async function renderPending() {
       });
     }
 
-    // Show settled bounties here too if we removed admin verification
-    // This space intentionally left blank — no admin section needed.
   } catch (e) { bodyStack.appendChild(emptyState('Could not load pending.', e.message)); }
 }
 
