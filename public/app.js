@@ -535,15 +535,7 @@ async function renderDetail(id) {
       try {
         let b64 = null; if (pImg.files[0]) b64 = await readFile(pImg.files[0]);
         await api(`/bounties/${id}/proof`, { method: 'POST', body: { image_base64: b64, proof_note: pNote.value.trim(), worker_invoice: workerInvoice } });
-        // Generate invoices for pledgers automatically (await to confirm)
-        try {
-          const invResult = await api(`/bounties/${id}/invoices`, { method: 'POST' });
-          const okCount = (invResult.invoices || []).filter(i => !i.error).length;
-          toast(`Proof sent. ${okCount} invoice${okCount !== 1 ? 's' : ''} generated for pledgers.`);
-        } catch (invErr) {
-          toast('Proof saved, but invoice generation failed. Pledgers may need to pay manually.', true);
-        }
-        renderDetail(id);
+        toast('Proof sent. Pledgers will be notified to pay.'); renderDetail(id);
       } catch (e) {
         toast(e.message, true);
         submitPfBtn.disabled = false;
@@ -568,14 +560,11 @@ async function renderDetail(id) {
       if (addr) { fixInv.value = addr; }
     }).catch(() => {});
 
-    const fixBtn = BTN('btn', 'Save address & generate invoices', async () => {
+    const fixBtn = BTN('btn', 'Save address', async () => {
       if (!fixInv.value.trim()) { toast('Enter a Lightning address', true); return; }
       try {
         await api(`/bounties/${id}/worker-invoice`, { method: 'POST', body: { worker_invoice: fixInv.value.trim() } });
-        toast('Address saved. Generating invoices…');
-        const invResult = await api(`/bounties/${id}/invoices`, { method: 'POST' });
-        const okCount = (invResult.invoices || []).filter(i => !i.error).length;
-        toast(`${okCount} invoice${okCount !== 1 ? 's' : ''} generated.`); renderDetail(id);
+        toast('Address saved. Pledgers can now pay you.'); renderDetail(id);
       } catch (e) { toast(e.message, true); }
     });
     fixPay.appendChild(fixBtn);
@@ -603,44 +592,23 @@ async function renderDetail(id) {
 
       pay.appendChild(h('div', 'b-desc', 'You pledged ' + fmtS(myPledge.amount_sats) + '. The work is done  -  honour your pledge.'));
 
-      if (myPledge.invoice_request || b.worker_invoice) {
+      if (b.worker_invoice) {
         const invBox = DIV('invoice-box');
-        const invoiceToShow = myPledge.invoice_request || null;
-        if (invoiceToShow) {
-          invBox.appendChild(h('div', 'hint', 'Use your Lightning wallet to pay this invoice:'));
-          invBox.appendChild(h('div', 'invoice-text', esc(invoiceToShow)));
-          const copyRow = DIV('gap-1');
-          copyRow.appendChild(BTN('btn btn-ghost btn-sm', '\u{1F4CB} Copy invoice', () => { copyToClipboard(invoiceToShow); toast('Copied'); }));
-          // WebLN auto-pay with pre-generated invoice
-          if (hasWebLN()) {
-            copyRow.appendChild(BTN('btn btn-sm', '\u26A1 Pay now', async () => {
-              try {
-                const preimage = await payInvoice(invoiceToShow);
-                await api(`/pledges/${myPledge.id}/autopay`, { method: 'POST', body: { preimage } });
-                toast('Paid! Your trust score will update.'); renderDetail(id);
-              } catch (e) { toast(e.message === 'NO_WEBLN' ? 'Wallet not connected' : e.message, true); }
-            }));
-          }
-          invBox.appendChild(copyRow);
-        } else if (b.worker_invoice) {
-          invBox.appendChild(h('div', 'hint', 'Use your Lightning wallet to pay the worker:'));
-          invBox.appendChild(h('div', 'invoice-text', esc(b.worker_invoice)));
-          const copyRow = DIV('gap-1');
-          copyRow.appendChild(BTN('btn btn-ghost btn-sm', '\u{1F4CB} Copy address', () => { copyToClipboard(b.worker_invoice); toast('Copied'); }));
-          if (hasWebLN()) {
-            copyRow.appendChild(BTN('btn btn-sm', '\u26A1 Pay now', async () => {
-              try {
-                const result = await resolveInvoiceFromAddress(b.worker_invoice, myPledge.amount_sats, 'build the roads bounty');
-                let preimage = 'manual';
-                if (result.invoice) { preimage = await payInvoice(result.invoice); }
-                else if (result.preimage) { preimage = result.preimage; }
-                await api(`/pledges/${myPledge.id}/autopay`, { method: 'POST', body: { preimage } });
-                toast('Paid!'); renderDetail(id);
-              } catch (e) { toast(e.message === 'NO_WEBLN' ? 'Wallet not connected' : e.message, true); }
-            }));
-          }
-          invBox.appendChild(copyRow);
+        invBox.appendChild(h('div', 'hint', 'Use your Lightning wallet to pay the worker:'));
+        invBox.appendChild(h('div', 'invoice-text', esc(b.worker_invoice)));
+        const copyRow = DIV('gap-1');
+        copyRow.appendChild(BTN('btn btn-ghost btn-sm', '\u{1F4CB} Copy address', () => { copyToClipboard(b.worker_invoice); toast('Copied'); }));
+        if (hasWebLN()) {
+          copyRow.appendChild(BTN('btn btn-sm', '\u26A1 Pay now', async () => {
+            try {
+              const result = await resolveInvoiceFromAddress(b.worker_invoice, myPledge.amount_sats, 'build the roads: ' + b.title);
+              const preimage = await payInvoice(result.invoice);
+              await api(`/pledges/${myPledge.id}/autopay`, { method: 'POST', body: { preimage } });
+              toast('Paid! Your trust score will update.'); renderDetail(id);
+            } catch (e) { toast(e.message === 'NO_WEBLN' ? 'Wallet not connected' : e.message, true); }
+          }));
         }
+        invBox.appendChild(copyRow);
         pay.appendChild(invBox);
       } else {
         pay.appendChild(h('div', 'hint', 'The worker has not provided a payment address yet.'));
