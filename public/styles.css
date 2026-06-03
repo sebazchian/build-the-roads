@@ -86,6 +86,9 @@ img{max-width:100%;display:block}
   .brand .word .name{font-size:15px}
   .brand .word .tag{display:none}
 }
+@media (max-width:640px){
+  .header-meta .badge{max-width:120px;overflow:hidden;text-overflow:ellipsis}
+}
 
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);flex-shrink:0}
 .brand:hover{text-decoration:none}
@@ -146,12 +149,15 @@ img{max-width:100%;display:block}
 }
 .pill-tabs button:hover{color:var(--ink)}
 .pill-tabs button.on{background:var(--bg-card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.btn.action-alert{color:var(--accent);border-color:var(--accent);background:var(--accent-dim)}
 
 /* ── Cards ── */
 .card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:calc(var(--s)*3)}
 @media (max-width:480px){.card{padding:calc(var(--s)*2)}}
 .card-interactive{cursor:pointer;transition:border-color .15s}
 .card-interactive:hover{border-color:var(--border-hover)}
+.card .btn,.card .btn-ghost{margin-top:10px}
+.card .btn:first-child,.card .btn-ghost:first-child{margin-top:0}
 
 /* ── Tags ── */
 .tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;white-space:nowrap}
@@ -205,8 +211,8 @@ img{max-width:100%;display:block}
 .btn-ghost:hover{background:var(--bg-raised);color:var(--ink)}
 .btn-sm{padding:7px 14px;font-size:13px}
 
-.gap-1>*+*{margin-top:var(--s)}
-.gap-2{margin-top:calc(var(--s)*2.5)}
+.gap-1{display:flex;flex-direction:column;gap:var(--s)}
+.gap-2{display:flex;flex-direction:column;gap:calc(var(--s)*2.5)}
 
 /* ── Forms ── */
 .field-label{display:block;font-weight:600;font-size:12px;color:var(--ink-dim);margin:calc(var(--s)*2.5) 0 calc(var(--s)*.75)}
@@ -290,7 +296,7 @@ select{
 .signin p{color:var(--ink-dim);font-size:14px;margin-bottom:20px;max-width:280px;margin-inline:auto}
 
 /* ── Invoice box (fallback for no WebLN) ── */
-.invoice-box{background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px}
+.invoice-box{background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--r-sm);padding:16px}
 .invoice-text{font-family:ui-monospace,SFMono-Regular,monospace;font-size:11px;color:var(--ink-muted);word-break:break-all;line-height:1.5;margin:8px 0;padding:8px;background:var(--bg-input);border-radius:var(--r-sm);max-height:80px;overflow-y:auto}
 
 /* ── No-script ── */
