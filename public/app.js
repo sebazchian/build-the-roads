@@ -616,7 +616,7 @@ async function renderDetail(id) {
         const invBox = DIV('invoice-box');
         invBox.appendChild(h('div', 'hint', 'Use your Lightning wallet to pay the worker:'));
         invBox.appendChild(h('div', 'invoice-text', esc(b.worker_invoice)));
-        const copyRow = DIV('gap-1');
+        const copyRow = DIV('gap-1-row');
         copyRow.appendChild(BTN('btn btn-ghost btn-sm', '\u{1F4CB} Copy address', () => { copyToClipboard(b.worker_invoice); toast('Copied'); }));
         if (hasWebLN()) {
           copyRow.appendChild(BTN('btn btn-sm', '\u26A1 Pay now', async () => {
