@@ -155,6 +155,8 @@ function renderHeader() {
   brand.onclick = e => { if (e.button === 0) { go('/'); return false; }};
   hd.appendChild(brand);
 
+  const right = DIV('header-right');
+  
   const actions = DIV('header-actions');
   if (COMMUNITY) {
     const badge = DIV('badge', cName(COMMUNITY));
@@ -166,7 +168,16 @@ function renderHeader() {
     const pendingBtn = BTN('btn btn-ghost btn-sm' + (ACTION_COUNT > 0 ? ' action-alert' : ''), 'To-do', () => go('/pending'));
     actions.appendChild(pendingBtn);
   }
-  hd.appendChild(actions);
+  right.appendChild(actions);
+
+  const meta = DIV('header-meta');
+  if (ME) {
+    meta.appendChild(h('div', 'up', esc(MENAME || short(ME))));
+    meta.appendChild(h('div', 'down', short(ME)));
+  }
+  right.appendChild(meta);
+  
+  hd.appendChild(right);
 }
 
 /* ── Shared components ── */
@@ -182,6 +193,7 @@ function makeTabs(active) {
   wrap.appendChild(mk('All', '/all', active === 'all'));
   wrap.appendChild(mk('To-do', '/pending', active === 'pending'));
   wrap.appendChild(mk('🏆', '/leaderboard', active === 'leaderboard'));
+  wrap.appendChild(mk('Why?', '/philosophy', active === 'philosophy'));
   return wrap;
 }
 

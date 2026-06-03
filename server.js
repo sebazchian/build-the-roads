@@ -61,7 +61,7 @@ async function serveStatic(res, urlPath, req) {
     try { data = await readFile(join(PUBLIC_DIR, 'index.html')); }
     catch { return send(res, 404, { error: 'not found' }); }
   }
-  res.writeHead(200, { 'Content-Type': MIME[extname(rel)] || 'application/octet-stream' });
+  res.writeHead(200, { 'Content-Type': MIME[extname(rel)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
   res.end(data);
 }
 

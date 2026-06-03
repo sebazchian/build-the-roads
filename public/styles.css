@@ -82,13 +82,26 @@ img{max-width:100%;display:block}
   gap:8px;padding-block:12px;min-height:56px;
 }
 .brand .word .tag{display:block}
+.header-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.header-right{display:flex;align-items:center;gap:12px;margin-left:auto}
+.header-meta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;text-align:right;min-width:0;overflow:hidden}
+.header-meta .up{font-weight:600;font-size:12px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
+.header-meta .down{font-size:10px;font-family:ui-monospace,SFMono-Regular,monospace;color:var(--ink-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
 @media (max-width:400px){
-  .site-header .wrap{flex-wrap:nowrap;gap:6px}
+  .site-header .wrap{flex-wrap:nowrap;gap:6px;padding:10px}
   .brand .word .name{font-size:14px}
   .brand .word .tag{font-size:8px;white-space:nowrap}
   .brand .orb{width:26px;height:26px}
   .brand .orb svg{width:14px;height:14px}
+  .header-right{gap:8px}
+  .header-meta .up{font-size:11px;max-width:90px}
+  .header-meta .down{display:none}
 }
+
+/* ── Badge ── */
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--bg-raised);border:1px solid var(--border);white-space:nowrap}
+.badge-change{font-size:10px;color:var(--ink-muted);background:none;border:none;cursor:pointer;padding:0 2px;margin-left:2px}
+.badge-change:hover{color:var(--ink)}
 
 /* ── Trust ── */
 .trust{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:999px;white-space:nowrap}
