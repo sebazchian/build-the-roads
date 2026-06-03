@@ -556,6 +556,25 @@ async function renderDetail(id) {
   }
 
   // Actions  -  proof submitted
+  if (b.status === 'proof_submitted' && !b.worker_invoice && isWorker) {
+    const fixPay = DIV('card');
+    fixPay.appendChild(h('div', 'overline', 'Add your payment address'));
+    fixPay.appendChild(h('div', 'hint', 'Pledgers need a Lightning address to pay you automatically.'));
+    const fixInv = h('input', ''); fixInv.placeholder = 'you@wallet.com'; fixPay.appendChild(fixInv);
+    const fixBtn = BTN('btn', 'Save address & generate invoices', async () => {
+      if (!fixInv.value.trim()) { toast('Enter a Lightning address', true); return; }
+      try {
+        await api(`/bounties/${id}/worker-invoice`, { method: 'POST', body: { worker_invoice: fixInv.value.trim() } });
+        toast('Address saved. Generating invoices…');
+        const invResult = await api(`/bounties/${id}/invoices`, { method: 'POST' });
+        const okCount = (invResult.invoices || []).filter(i => !i.error).length;
+        toast(`${okCount} invoice${okCount !== 1 ? 's' : ''} generated.`); renderDetail(id);
+      } catch (e) { toast(e.message, true); }
+    });
+    fixPay.appendChild(fixBtn);
+    bodyStack.appendChild(fixPay);
+  }
+
   if (b.status === 'proof_submitted') {
     if (b.proof_image || b.proof_note) {
       const pr = DIV('card');

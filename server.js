@@ -288,6 +288,18 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { pledge });
     }
 
+    // Worker can add/update their Lightning address after proof submission (retroactive fix)
+    const workerInvMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/worker-invoice$/);
+    if (workerInvMatch && req.method === 'POST') {
+      const body = await readJson(req);
+      if (!body.worker_invoice) return send(res, 400, { error: 'worker_invoice required' });
+      const id = workerInvMatch[1];
+      const b = db.getBounty(id, getCid());
+      if (!b) return send(res, 404, { error: 'not found' });
+      db.updateWorkerInvoice(id, body.worker_invoice);
+      return send(res, 200, { bounty: db.getBounty(id, b.community_id) });
+    }
+
     const settleMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/settle$/);
     if (settleMatch && req.method === 'POST') {
       const body = await readJson(req);
