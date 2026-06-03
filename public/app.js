@@ -3,6 +3,7 @@ import { getPubkey, getDisplayName, signAction, makeInvoice, payInvoice, getLigh
 
 /* ── State ── */
 let ME=null, MENAME=null, COMMUNITY=null, ALL_COMMUNITIES=[];
+let ACTION_COUNT=0; // cached pending items for header/tab styling
 
 /* ── DOM builders ── */
 const $ = id => document.getElementById(id);
@@ -88,6 +89,14 @@ const api = async (path, opts = {}) => {
   return j;
 };
 
+async function refreshActionCount() {
+  if (!ME) { ACTION_COUNT = 0; return; }
+  try {
+    const { toClaim, toPay, toVerify } = await api('/pending?pubkey=' + encodeURIComponent(ME));
+    ACTION_COUNT = (toClaim?.length || 0) + (toPay?.length || 0) + (toVerify?.length || 0);
+  } catch (e) { ACTION_COUNT = 0; }
+}
+
 /* ── Community ── */
 function resolveCommunity() {
   COMMUNITY = new URLSearchParams(location.search).get('community')
@@ -124,6 +133,7 @@ function route() {
   if (h === '/philosophy') { renderPhilosophy(); return; }
   if (!COMMUNITY) { renderPicker(); return; }
   if (!ME) { renderSignIn(); return; }
+  refreshActionCount(); // update badge count before rendering
   if (h === '/' || h === '/open') renderHome('open');
   else if (h === '/all') renderHome(null);
   else if (h === '/new') renderNew();
@@ -155,7 +165,7 @@ function renderHeader() {
   if (ME) {
     meta.appendChild(h('div', 'up', esc(MENAME || short(ME))));
     meta.appendChild(h('div', 'down', short(ME)));
-    const pendingBtn = BTN('btn btn-ghost btn-sm', 'Action', () => go('/pending'));
+    const pendingBtn = BTN('btn btn-ghost btn-sm' + (ACTION_COUNT > 0 ? ' action-alert' : ''), 'Action' + (ACTION_COUNT > 0 ? ' (' + ACTION_COUNT + ')' : ''), () => go('/pending'));
     pendingBtn.style.marginLeft = '8px';
     meta.appendChild(pendingBtn);
   }
@@ -168,13 +178,13 @@ function renderHeader() {
 /* ── Shared components ── */
 function makeTabs(active) {
   const wrap = DIV('pill-tabs');
-  const mk = (label, href, on) => {
-    const b = BTN(on ? 'on' : '', label, () => go(href));
+  const mk = (label, href, on, alert) => {
+    const b = BTN(on ? 'on' : '' + (alert ? ' action-alert' : ''), label, () => go(href));
     return b;
   };
   wrap.appendChild(mk('Open', '/open', active === 'open'));
   wrap.appendChild(mk('All', '/all', active === 'all'));
-  wrap.appendChild(mk('Action', '/pending', active === 'pending'));
+  wrap.appendChild(mk('Action' + (ACTION_COUNT > 0 ? ' (' + ACTION_COUNT + ')' : ''), '/pending', active === 'pending', ACTION_COUNT > 0));
   wrap.appendChild(mk('🏆', '/leaderboard', active === 'leaderboard'));
   return wrap;
 }
@@ -467,7 +477,7 @@ async function renderDetail(id) {
         try {
           const sig = await signAction('Claim', { kind: 'm2s-claim', bounty: b.id });
           await api(`/bounties/${id}/claim`, { method: 'POST', body: { worker_pubkey: ME, display_name: MENAME, community_id: COMMUNITY, ...sig } });
-          toast('Claimed.'); renderDetail(id);
+          toast('Claimed.'); refreshActionCount(); renderDetail(id);
         } catch (e) {
           toast(e.message, true);
           claimBtn.disabled = false;
@@ -522,7 +532,7 @@ async function renderDetail(id) {
         await api(`/bounties/${id}/proof`, { method: 'POST', body: { image_base64: b64, proof_note: pNote.value.trim(), worker_invoice: pInv.value.trim() } });
         // Generate invoices for pledgers automatically
         api(`/bounties/${id}/invoices`, { method: 'POST' }).catch(() => {});
-        toast('Proof sent — pledgers will be notified.'); renderDetail(id);
+        toast('Proof sent — pledgers will be notified.'); refreshActionCount(); renderDetail(id);
       } catch (e) {
         toast(e.message, true);
         submitPfBtn.disabled = false;
@@ -570,7 +580,7 @@ async function renderDetail(id) {
               try {
                 const preimage = await payInvoice(invoiceToShow);
                 await api(`/pledges/${myPledge.id}/autopay`, { method: 'POST', body: { preimage } });
-                toast('Paid! Your trust score will update.'); renderDetail(id);
+                toast('Paid! Your trust score will update.'); refreshActionCount(); renderDetail(id);
               } catch (e) { toast(e.message === 'NO_WEBLN' ? 'Wallet not connected' : e.message, true); }
             }));
           }
@@ -588,7 +598,7 @@ async function renderDetail(id) {
                 if (result.invoice) { preimage = await payInvoice(result.invoice); }
                 else if (result.preimage) { preimage = result.preimage; }
                 await api(`/pledges/${myPledge.id}/autopay`, { method: 'POST', body: { preimage } });
-                toast('Paid!'); renderDetail(id);
+                toast('Paid!'); refreshActionCount(); renderDetail(id);
               } catch (e) { toast(e.message === 'NO_WEBLN' ? 'Wallet not connected' : e.message, true); }
             }));
           }
@@ -603,7 +613,7 @@ async function renderDetail(id) {
       payActions.style.marginTop = '12px';
       payActions.appendChild(BTN('btn', '\u2705 I paid manually', async () => {
         await api(`/pledges/${myPledge.id}/pay`, { method: 'POST', body: { preimage: 'manual' } });
-        toast('Payment reported — the community will verify it.'); renderDetail(id);
+        toast('Payment reported — the community will verify it.'); refreshActionCount(); renderDetail(id);
       }));
       payActions.appendChild(BTN('btn btn-ghost', 'Flag as bad work', async () => {
         await api(`/bounties/${id}/flag`, { method: 'POST', body: { flagger_pubkey: ME, target_pubkey: b.worker_pubkey, reason: 'bad work' } });

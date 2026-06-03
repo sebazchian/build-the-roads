@@ -146,6 +146,8 @@ img{max-width:100%;display:block}
 }
 .pill-tabs button:hover{color:var(--ink)}
 .pill-tabs button.on{background:var(--bg-card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.pill-tabs button.action-alert{background:var(--accent-dim);color:var(--accent);font-weight:700}
+.pill-tabs button.action-alert:hover{background:var(--accent);color:#fff}
 
 /* ── Cards ── */
 .card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:calc(var(--s)*3)}
@@ -204,6 +206,8 @@ img{max-width:100%;display:block}
 .btn-ghost{background:transparent;color:var(--ink-dim);border:1px solid var(--border);padding:9px 16px}
 .btn-ghost:hover{background:var(--bg-raised);color:var(--ink)}
 .btn-sm{padding:7px 14px;font-size:13px}
+.btn-ghost.action-alert,.action-alert{background:var(--accent-dim);color:var(--accent);border-color:var(--accent);font-weight:600}
+.btn-ghost.action-alert:hover{background:var(--accent);color:#fff}
 
 .gap-1>*+*{margin-top:var(--s)}
 .gap-2{margin-top:calc(var(--s)*2.5)}
