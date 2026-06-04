@@ -359,6 +359,7 @@ function renderNew() {
    DETAIL
    ================================================================ */
 async function renderDetail(id) {
+  try {
   const w = $('app');
   renderHeader();
 
@@ -370,7 +371,11 @@ async function renderDetail(id) {
   try { ({ bounty: b } = await api('/bounties/' + id)); }
   catch { w.appendChild(emptyState('Not found', "That bounty doesn't exist in this community.")); return; }
 
-  const myPledge = b.pledges.find(p => p.pledger_pubkey === ME);
+  // Defensive: ensure arrays exist
+  b.pledges = b.pledges || [];
+  b.flags = b.flags || [];
+
+  const myPledge = (b.pledges || []).find(p => p.pledger_pubkey === ME);
   const isWorker = b.worker_pubkey === ME;
 
   const cat = CAT_MAP[b.category] || CAT_MAP.other;
@@ -412,9 +417,9 @@ async function renderDetail(id) {
   ));
   if (b.effective_pot_sats !== b.pot_sats)
     pot.appendChild(h('div', 'b-nums', '~' + fmt(b.effective_pot_sats) + ' trusted pot'));
-  if (b.pledges.length) {
+  if ((b.pledges || []).length) {
     const pl = DIV('pl-list');
-    b.pledges.forEach(p => {
+    (b.pledges || []).forEach(p => {
       const trustSlot = h('span', 'trust-slot');
       trustSlot.dataset.pk = p.pledger_pubkey;
       const statusLabel = p.status === 'paid' ? h('span', 'pl-paid', 'paid') :
@@ -434,7 +439,7 @@ async function renderDetail(id) {
     pot.appendChild(pl);
     // load trust badges async
     setTimeout(() => {
-      b.pledges.forEach(async p => {
+      (b.pledges || []).forEach(async p => {
         const t = await loadTrust(p.pledger_pubkey);
         const slots = pot.querySelectorAll('.trust-slot');
         for (const slot of slots) {
@@ -649,6 +654,13 @@ async function renderDetail(id) {
       pay.appendChild(payActions);
       bodyStack.appendChild(pay);
     }
+  }
+  } catch (e) {
+    console.error('renderDetail error:', e);
+    const w = $('app');
+    w.innerHTML = '';
+    renderHeader();
+    w.appendChild(emptyState('Something went wrong', e.message || 'Please try refreshing the page.'));
   }
 }
 
