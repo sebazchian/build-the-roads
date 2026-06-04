@@ -45,19 +45,16 @@ function toast(msg, err) {
   setTimeout(() => t.remove(), 3000);
 }
 
-/* ── SVG logo (safe DOM, not innerHTML) ── */
+/* ── Logo image (uses favicon.png) ── */
 function makeBrandOrb() {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('width', '16'); svg.setAttribute('height', '16');
-  svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'none');
-  const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-  c.setAttribute('cx', '12'); c.setAttribute('cy', '12'); c.setAttribute('r', '11'); c.setAttribute('fill', '#fff');
-  const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-  t.setAttribute('x', '12'); t.setAttribute('y', '17'); t.setAttribute('text-anchor', 'middle');
-  t.setAttribute('font-size', '14'); t.setAttribute('font-weight', '800'); t.setAttribute('fill', '#FF9419');
-  t.textContent = '₿';
-  svg.appendChild(c); svg.appendChild(t);
-  return svg;
+  const img = document.createElement('img');
+  img.src = 'favicon.png?v=1';
+  img.alt = 'build the roads';
+  img.style.width = '100%';
+  img.style.height = '100%';
+  img.style.objectFit = 'cover';
+  img.style.borderRadius = '50%';
+  return img;
 }
 
 /* ── Category config ── */
