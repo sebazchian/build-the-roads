@@ -633,15 +633,27 @@ async function renderDetail(id) {
 
       if (b.worker_invoice) {
         const invBox = DIV('invoice-box');
-        invBox.appendChild(h('div', 'hint', 'Use your Lightning wallet to pay the worker:'));
-        invBox.appendChild(h('div', 'invoice-text', esc(b.worker_invoice)));
+        const hasPreGenInvoice = myPledge.invoice_request;
+        if (hasPreGenInvoice) {
+          invBox.appendChild(h('div', 'hint', 'Use your Lightning wallet to pay this invoice:'));
+          invBox.appendChild(h('div', 'invoice-text', esc(myPledge.invoice_request)));
+        } else {
+          invBox.appendChild(h('div', 'hint', 'Use your Lightning wallet to pay the worker:'));
+          invBox.appendChild(h('div', 'invoice-text', esc(b.worker_invoice)));
+        }
         const copyRow = DIV('gap-1-row');
-        copyRow.appendChild(BTN('btn btn-ghost btn-sm', '\u{1F4CB} Copy address', () => { copyToClipboard(b.worker_invoice); toast('Copied'); }));
+        copyRow.appendChild(BTN('btn btn-ghost btn-sm', '\u{1F4CB} Copy ' + (hasPreGenInvoice ? 'invoice' : 'address'), () => { copyToClipboard(hasPreGenInvoice ? myPledge.invoice_request : b.worker_invoice); toast('Copied'); }));
         if (hasWebLN()) {
           copyRow.appendChild(BTN('btn btn-sm', '\u26A1 Pay now', async () => {
             try {
-              const result = await resolveInvoiceFromAddress(b.worker_invoice, myPledge.amount_sats, 'build the roads: ' + b.title);
-              const preimage = await payInvoice(result.invoice);
+              let invoiceToPay;
+              if (hasPreGenInvoice) {
+                invoiceToPay = myPledge.invoice_request;
+              } else {
+                const result = await resolveInvoiceFromAddress(b.worker_invoice, myPledge.amount_sats, 'build the roads: ' + b.title);
+                invoiceToPay = result.invoice;
+              }
+              const preimage = await payInvoice(invoiceToPay);
               await api(`/pledges/${myPledge.id}/pay`, { method: 'POST', body: { preimage } });
               toast('Payment recorded. Preimage stored for verification.'); renderDetail(id);
             } catch (e) { toast(e.message === 'NO_WEBLN' ? 'Wallet not connected' : e.message, true); }
