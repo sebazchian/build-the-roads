@@ -1,5 +1,5 @@
 /* build the roads  -  clean, no-weird-links */
-import { getPubkey, getDisplayName, signAction, makeInvoice, payInvoice, getLightningAddress, resolveInvoiceFromAddress, inFedi, hasWebLN, hasNostr, generateDevKey, copyToClipboard } from './fedi.js';
+import { getPubkey, getDisplayName, signAction, makeInvoice, payInvoice, getLightningAddress, getLnurl, resolveInvoiceFromAddress, inFedi, hasWebLN, hasNostr, generateDevKey, copyToClipboard } from './fedi.js';
 
 /* ── State ── */
 let ME=null, MENAME=null, COMMUNITY=null, ALL_COMMUNITIES=[];
@@ -252,7 +252,11 @@ async function renderHome(filter) {
     const { bounties } = await api('/bounties' + qs);
     list = DIV('stack');
     if (!bounties.length) {
-      list.appendChild(emptyState('Nothing here yet.', 'Be the first to post a need.'));
+      if (filter === 'open') {
+        list.appendChild(emptyState('No open jobs.', 'Check the All tab to see claimed and completed jobs, or be the first to post a need.'));
+      } else {
+        list.appendChild(emptyState('Nothing here yet.', 'Be the first to post a need.'));
+      }
     } else {
       bounties.forEach(b => list.appendChild(bountyCard(b)));
     }
@@ -406,92 +410,7 @@ async function renderDetail(id) {
   // description
   bodyStack.appendChild(DIV('card', h('div', '', esc(b.description))));
 
-  // "I'll do this" card - MOVED TO TOP (right after description)
-  if (b.status === 'open' && !isWorker) {
-    const claimCard = DIV('card card-action');
-    claimCard.appendChild(h('div', 'overline', '🙋 Do the work'));
-    claimCard.appendChild(hint('Claim this job, do the work, then send proof. The pledgers will pay you.'));
-    const claimBtn = BTN('btn btn-lg', "I'll do this", async () => {
-      if (claimBtn._submitting) return;
-      claimBtn._submitting = true;
-      claimBtn.disabled = true;
-      claimBtn.textContent = 'Claiming…';
-      try {
-        const sig = await signAction('Claim', { kind: 'm2s-claim', bounty: b.id });
-        await api(`/bounties/${id}/claim`, { method: 'POST', body: { worker_pubkey: ME, display_name: MENAME, community_id: COMMUNITY, ...sig } });
-        toast('Claimed.'); renderDetail(id);
-      } catch (e) {
-        toast(e.message, true);
-        claimBtn.disabled = false;
-        claimBtn.textContent = "🙋 I'll do this";
-        claimBtn._submitting = false;
-      }
-    });
-    claimCard.appendChild(claimBtn);
-    bodyStack.appendChild(claimCard);
-  }
-
-  // pot card
-  const pot = DIV('card');
-  pot.appendChild(DIV('b-row',
-    h('span', 'b-nums', h('span', 'big', fmt(b.pot_sats)), ' sats'),
-    h('span', 'tag-status tag-' + b.status, esc({ open: 'Open', claimed: 'Claimed', proof_submitted: 'Proof sent', settled: 'Done' }[b.status] || b.status))
-  ));
-  if (b.effective_pot_sats !== b.pot_sats)
-    pot.appendChild(h('div', 'b-nums', '~' + fmt(b.effective_pot_sats) + ' trusted pot'));
-  if ((b.pledges || []).length) {
-    const pl = DIV('pl-list');
-    (b.pledges || []).forEach(p => {
-      const trustSlot = h('span', 'trust-slot');
-      trustSlot.dataset.pk = p.pledger_pubkey;
-      const statusLabel = p.status === 'paid' ? h('span', 'pl-paid', 'paid') :
-                         p.status === 'reneged' ? h('span', 'pl-reneged', 'reneged') :
-                         p.status === 'payment_claimed' ? h('span', 'pl-pending', 'pending') :
-                         null;
-      const row = DIV('pl-row',
-        DIV('pl-who',
-          statusLabel,
-          h('span', 'pl-addr', short(p.pledger_pubkey)),
-          trustSlot
-        ),
-        h('span', 'pl-amt', fmtS(p.amount_sats))
-      );
-      pl.appendChild(row);
-    });
-    pot.appendChild(pl);
-    // load trust badges async
-    setTimeout(() => {
-      (b.pledges || []).forEach(async p => {
-        const t = await loadTrust(p.pledger_pubkey);
-        const slots = pot.querySelectorAll('.trust-slot');
-        for (const slot of slots) {
-          if (slot.dataset.pk === p.pledger_pubkey && t) {
-            slot.replaceWith(trustBadge(t));
-            break;
-          }
-        }
-      });
-    }, 0);
-  }
-  bodyStack.appendChild(pot);
-
-  // Worker warning
-  if (b.status === 'open' && !isWorker) {
-    bodyStack.appendChild(DIV('card warn',
-      h('b', '', 'Workers:'),
-      ' This app cannot force pledgers to pay. We can only track who keeps their word. Check the trust scores below before claiming a job.'
-    ));
-  }
-
-  // Expired notice
-  if (b.status === 'expired') {
-    bodyStack.appendChild(DIV('card',
-      h('div', 'overline', 'Expired'),
-      h('div', 'b-desc', 'This bounty expired before anyone claimed it. The pledges have been cancelled.')
-    ));
-  }
-
-  // Actions  -  open
+  // PLEDGE CARD — moved above "I'll do this"
   if (b.status === 'open') {
     const pledgeCard = DIV('card');
     pledgeCard.appendChild(h('div', 'overline', 'Your pledge'));
@@ -520,6 +439,96 @@ async function renderDetail(id) {
     bodyStack.appendChild(pledgeCard);
   }
 
+  // "I'll do this" card
+  if (b.status === 'open' && !isWorker) {
+    const claimCard = DIV('card card-action');
+    claimCard.appendChild(h('div', 'overline', '🙋 Do the work'));
+    claimCard.appendChild(hint('Claim this job, do the work, then send proof. The pledgers will pay you.'));
+    const claimBtn = BTN('btn btn-lg', "I'll do this", async () => {
+      if (claimBtn._submitting) return;
+      claimBtn._submitting = true;
+      claimBtn.disabled = true;
+      claimBtn.textContent = 'Claiming…';
+      try {
+        const sig = await signAction('Claim', { kind: 'm2s-claim', bounty: b.id });
+        await api(`/bounties/${id}/claim`, { method: 'POST', body: { worker_pubkey: ME, display_name: MENAME, community_id: COMMUNITY, ...sig } });
+        toast('Claimed.'); renderDetail(id);
+      } catch (e) {
+        toast(e.message, true);
+        claimBtn.disabled = false;
+        claimBtn.textContent = "🙋 I'll do this";
+        claimBtn._submitting = false;
+      }
+    });
+    claimCard.appendChild(claimBtn);
+    bodyStack.appendChild(claimCard);
+  }
+
+  // pot card — shows pledges and status
+  const pot = DIV('card');
+  pot.appendChild(DIV('b-row',
+    h('span', 'b-nums', h('span', 'big', fmt(b.pot_sats)), ' sats'),
+    h('span', 'tag-status tag-' + b.status, esc({ open: 'Open', claimed: 'Claimed', proof_submitted: 'Proof sent', settled: 'Done' }[b.status] || b.status))
+  ));
+  if (b.effective_pot_sats !== b.pot_sats)
+    pot.appendChild(h('div', 'b-nums', '~' + fmt(b.effective_pot_sats) + ' trusted pot'));
+  if ((b.pledges || []).length) {
+    const pl = DIV('pl-list');
+    (b.pledges || []).forEach(p => {
+      // Contextual badge: reflects THIS pledge's status, not just historical trust
+      const contextualBadge = () => {
+        if (p.status === 'paid') return h('span', 'trust trust-reliable', 'paid');
+        if (p.status === 'reneged') return h('span', 'trust trust-unreliable', 'reneged');
+        if (p.status === 'payment_claimed') return h('span', 'trust trust-mixed', 'pending');
+        // pledged but not yet paid — show "owes" on active bounties
+        if (p.status === 'pledged' && (b.status === 'proof_submitted' || b.status === 'settled')) {
+          return h('span', 'trust trust-new', 'owes');
+        }
+        return null; // open bounty: no payment expected yet
+      };
+      const statusLabel = p.status === 'paid' ? h('span', 'pl-paid', 'paid') :
+                         p.status === 'reneged' ? h('span', 'pl-reneged', 'reneged') :
+                         p.status === 'payment_claimed' ? h('span', 'pl-pending', 'pending') :
+                         null;
+      const badge = contextualBadge();
+      const row = DIV('pl-row',
+        DIV('pl-who',
+          statusLabel,
+          h('span', 'pl-addr', short(p.pledger_pubkey)),
+          badge
+        ),
+        h('span', 'pl-amt', fmtS(p.amount_sats))
+      );
+      pl.appendChild(row);
+    });
+    pot.appendChild(pl);
+    // Also load historical trust score as tooltip-style info (optional enrichment)
+    setTimeout(() => {
+      (b.pledges || []).forEach(async p => {
+        const t = await loadTrust(p.pledger_pubkey);
+        if (!t) return;
+        // Could add hover tooltip or secondary info here if desired
+      });
+    }, 0);
+  }
+  bodyStack.appendChild(pot);
+
+  // Worker warning
+  if (b.status === 'open' && !isWorker) {
+    bodyStack.appendChild(DIV('card warn',
+      h('b', '', 'Workers:'),
+      ' This app cannot force pledgers to pay. We can only track who keeps their word. Check the trust scores below before claiming a job.'
+    ));
+  }
+
+  // Expired notice
+  if (b.status === 'expired') {
+    bodyStack.appendChild(DIV('card',
+      h('div', 'overline', 'Expired'),
+      h('div', 'b-desc', 'This bounty expired before anyone claimed it. The pledges have been cancelled.')
+    ));
+  }
+
   // Actions  -  claimed (worker proof)
   if (b.status === 'claimed' && isWorker) {
     const pf = DIV('card');
@@ -534,21 +543,21 @@ async function renderDetail(id) {
     pf.appendChild(h('label', 'field-label', 'What did you do?'));
     const pNote = h('textarea', ''); pNote.placeholder = 'Describe the work - what you did, how it looks now.'; pf.appendChild(pNote);
 
-    // Lightning address: auto-fetch from Fedi/Alby wallet, allow manual override
-    pf.appendChild(h('label', 'field-label', 'Your Lightning address for payments'));
+    // Lightning address / LNURL: auto-fetch from Fedi/Alby wallet, allow manual override
+    pf.appendChild(h('label', 'field-label', 'Your Lightning address or LNURL for payments'));
     const lnHint = h('div', 'hint', 'Fetching from your wallet…');
     pf.appendChild(lnHint);
-    const pInv = h('input', ''); pInv.placeholder = 'you@wallet.com'; pf.appendChild(pInv);
+    const pInv = h('input', ''); pInv.placeholder = 'you@wallet.com or LNURL1...'; pf.appendChild(pInv);
 
     getLightningAddress().then(addr => {
       if (addr) {
         pInv.value = addr;
         lnHint.textContent = 'Auto-filled from your wallet.';
       } else {
-        lnHint.textContent = 'Enter your Lightning address (user@domain). Pledgers will pay you here automatically.';
+        lnHint.textContent = 'Enter your Lightning address (user@domain) or LNURL. Pledgers will pay you here automatically.';
       }
     }).catch(() => {
-      lnHint.textContent = 'Enter your Lightning address (user@domain). Pledgers will pay you here automatically.';
+      lnHint.textContent = 'Enter your Lightning address (user@domain) or LNURL. Pledgers will pay you here automatically.';
     });
 
     const submitPfBtn = BTN('btn', 'Submit proof', async () => {
@@ -568,9 +577,16 @@ async function renderDetail(id) {
         try {
           const { invoices } = await api(`/bounties/${id}/invoices`, { method: 'POST' });
           const ok = invoices.filter(inv => inv.invoice).length;
-          toast(`Proof sent. ${ok} invoices generated for pledgers.`);
+          const errors = invoices.filter(inv => inv.error);
+          if (errors.length > 0) {
+            console.error('[invoice] generation errors:', errors);
+            toast(`Proof sent. ${ok} invoices generated. ${errors.length} failed — check console.`);
+          } else {
+            toast(`Proof sent. ${ok} invoices generated for pledgers.`);
+          }
         } catch (invErr) {
-          toast('Proof sent.'); // Don't fail if invoices can't be generated right away
+          console.error('[invoice] generation failed:', invErr);
+          toast('Proof sent, but invoice generation failed: ' + invErr.message, true);
         }
         renderDetail(id);
       } catch (e) {
@@ -589,8 +605,8 @@ async function renderDetail(id) {
   if (b.status === 'proof_submitted' && !b.worker_invoice) {
     const fixPay = DIV('card');
     fixPay.appendChild(h('div', 'overline', 'Add your payment address'));
-    fixPay.appendChild(h('div', 'hint', 'Pledgers need a Lightning address to pay you automatically.'));
-    const fixInv = h('input', ''); fixInv.placeholder = 'you@wallet.com'; fixPay.appendChild(fixInv);
+    fixPay.appendChild(h('div', 'hint', 'Pledgers need a Lightning address or LNURL to pay you automatically.'));
+    const fixInv = h('input', ''); fixInv.placeholder = 'you@wallet.com or LNURL1...'; fixPay.appendChild(fixInv);
 
     // Auto-fetch from wallet
     getLightningAddress().then(addr => {
@@ -598,7 +614,7 @@ async function renderDetail(id) {
     }).catch(() => {});
 
     const fixBtn = BTN('btn', 'Save address', async () => {
-      if (!fixInv.value.trim()) { toast('Enter a Lightning address', true); return; }
+      if (!fixInv.value.trim()) { toast('Enter a Lightning address or LNURL', true); return; }
       try {
         await api(`/bounties/${id}/worker-invoice`, { method: 'POST', body: { worker_invoice: fixInv.value.trim() } });
         toast('Address saved. Pledgers can now pay you.'); renderDetail(id);
@@ -696,6 +712,18 @@ function renderPhilosophy() {
 
   const lead = DIV('stack');
   lead.appendChild(makeTabs('philosophy'));
+  const logoWrap = h('div', '');
+  logoWrap.style.textAlign = 'center';
+  logoWrap.style.margin = '24px 0';
+  const logoImg = h('img', '');
+  logoImg.src = 'favicon.png?v=1';
+  logoImg.alt = 'build the roads';
+  logoImg.style.width = '96px';
+  logoImg.style.height = '96px';
+  logoImg.style.borderRadius = '50%';
+  logoImg.style.objectFit = 'cover';
+  logoWrap.appendChild(logoImg);
+  lead.appendChild(logoWrap);
   lead.appendChild(h('h1', 't1', 'Why this works'));
   w.appendChild(lead);
 

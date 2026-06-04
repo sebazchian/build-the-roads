@@ -45,27 +45,49 @@ export async function signAction(content, tags = []) {
   return {}; // dev: unsigned (server will warn and accept in dev)
 }
 
-// --- Lightning Address ---
-// Get the worker's Lightning address from their wallet automatically.
-// Priority: 1) Fedi webln.getInfo() lnAddress, 2) Alby lnAddress, 3) null (manual entry)
-export async function getLightningAddress() {
-  // Try WebLN (Fedi or Alby both expose webln.getInfo)
-  if (window.webln?.getInfo) {
+// --- Lightning Address / LNURL ---
+
+// Get the raw LNURL from Fedi (if available)
+export async function getLnurl() {
+  if (window.fedi?.getLnurl) {
     try {
-      await window.webln.enable();
-      const info = await window.webln.getInfo();
-      // Alby and Fedi both return node.alias, but Alby also returns lnAddress
-      if (info?.lnAddress) return info.lnAddress;          // Alby
-      if (info?.node?.lnAddress) return info.node.lnAddress; // Alby (alternate)
-      if (info?.node?.alias && info.node.alias.includes('@')) return info.node.alias; // some wallets
-    } catch (e) { console.warn('getLightningAddress: webln.getInfo failed', e); }
+      const lnurl = await window.fedi.getLnurl();
+      if (lnurl) return lnurl;
+    } catch (e) { console.warn('getLnurl: fedi.getLnurl failed', e); }
   }
-  // Try window.fedi for ecash-based address
+  return null;
+}
+
+// Get the worker's Lightning address or LNURL from their wallet automatically.
+// Priority: 1) Fedi getLnurl(), 2) Fedi getLightningAddress(), 3) WebLN getInfo() lnAddress, 4) null (manual entry)
+export async function getLightningAddress() {
+  // Try Fedi LNURL first (most common in Fedi app)
+  const lnurl = await getLnurl();
+  if (lnurl) return lnurl;
+
+  // Try Fedi direct Lightning address
+  if (window.fedi?.getLightningAddress) {
+    try {
+      const addr = await window.fedi.getLightningAddress();
+      if (addr) return addr;
+    } catch (e) { console.warn('getLightningAddress: fedi.getLightningAddress failed', e); }
+  }
+  // Try Fedi active federation (ecash-based address)
   if (window.fedi?.getActiveFederation) {
     try {
       const fed = await window.fedi.getActiveFederation();
       if (fed?.lnAddress) return fed.lnAddress;
     } catch (e) { console.warn('getLightningAddress: fedi.getActiveFederation failed', e); }
+  }
+  // Try WebLN (Alby, Fedi, etc.)
+  if (window.webln?.getInfo) {
+    try {
+      await window.webln.enable();
+      const info = await window.webln.getInfo();
+      if (info?.lnAddress) return info.lnAddress;
+      if (info?.node?.lnAddress) return info.node.lnAddress;
+      if (info?.node?.alias && info.node.alias.includes('@')) return info.node.alias;
+    } catch (e) { console.warn('getLightningAddress: webln.getInfo failed', e); }
   }
   return null; // caller should show manual input field
 }

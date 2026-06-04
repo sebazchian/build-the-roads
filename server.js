@@ -237,21 +237,36 @@ const server = createServer(async (req, res) => {
     if (invoiceMatch && req.method === 'POST') {
       const { resolveInvoiceFromAddress } = await import('./lib/lnurl.js');
       const id = invoiceMatch[1];
-      const b = db.getBounty(id, getCid());
-      if (!b) return send(res, 404, { error: 'Bounty not found' });
-      if (b.status !== 'proof_submitted') return send(res, 400, { error: 'Bounty is not awaiting payment' });
-      if (!b.worker_invoice) return send(res, 400, { error: 'Worker has no Lightning address' });
+      const cid = getCid();
+      console.log(`[invoices] generating for bounty=${id}, community=${cid}`);
+      const b = db.getBounty(id, cid);
+      if (!b) {
+        console.error(`[invoices] bounty not found: ${id}`);
+        return send(res, 404, { error: 'Bounty not found' });
+      }
+      console.log(`[invoices] bounty status=${b.status}, worker_invoice=${b.worker_invoice ? 'yes' : 'no'}, pledges=${b.pledges?.length || 0}`);
+      if (b.status !== 'proof_submitted') {
+        return send(res, 400, { error: 'Bounty is not awaiting payment (status: ' + b.status + ')' });
+      }
+      if (!b.worker_invoice) {
+        return send(res, 400, { error: 'Worker has no Lightning address' });
+      }
+      const pledgesToInvoice = b.pledges.filter(p => p.status === 'pledged');
+      console.log(`[invoices] pledges to invoice: ${pledgesToInvoice.length}`);
       const results = [];
-      for (const pl of b.pledges.filter(p => p.status === 'pledged')) {
+      for (const pl of pledgesToInvoice) {
         try {
+          console.log(`[invoices] resolving ${pl.amount_sats} sats for pledge ${pl.id}`);
           const { pr } = await resolveInvoiceFromAddress(b.worker_invoice, pl.amount_sats, 'build the roads: ' + b.title);
           db.storePledgeInvoice(pl.id, pr);
           results.push({ pledge_id: pl.id, invoice: pr });
+          console.log(`[invoices] generated invoice for pledge ${pl.id}`);
         } catch (e) {
+          console.error(`[invoices] failed for pledge ${pl.id}:`, e.message);
           results.push({ pledge_id: pl.id, error: e.message });
         }
       }
-      return send(res, 200, { invoices: results, bounty: db.getBounty(id, b.community_id) });
+      return send(res, 200, { invoices: results, bounty: db.getBounty(id, cid) });
     }
 
     // Auto-pay: pledger pays via pre-generated invoice, server records it (or preimage from WebLN)
