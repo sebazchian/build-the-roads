@@ -629,8 +629,8 @@ async function renderDetail(id) {
       pay.appendChild(h('div', 'b-desc', 'You pledged ' + fmtS(myPledge.amount_sats) + '. The work is done  -  honour your pledge.'));
 
       if (b.worker_invoice) {
-        const invBox = DIV('invoice-box');
         const hasPreGenInvoice = myPledge.invoice_request;
+        const invBox = DIV('invoice-box' + (hasPreGenInvoice ? ' invoice-box-ready' : ''));
         console.log("Pay section: hasPreGenInvoice=", !!hasPreGenInvoice, "invoice_request=", hasPreGenInvoice ? hasPreGenInvoice.substring(0, 30) + "..." : "none");
         if (hasPreGenInvoice) {
           invBox.appendChild(h('div', 'hint', 'Use your Lightning wallet to pay this invoice:'));

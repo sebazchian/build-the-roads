@@ -308,6 +308,7 @@ select{
 
 /* ── Invoice box (fallback for no WebLN) ── */
 .invoice-box{margin-bottom:3px;background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--r-sm);padding:16px}
+.invoice-box-ready{border-left:4px solid var(--accent)}
 .invoice-text{font-family:ui-monospace,SFMono-Regular,monospace;font-size:11px;color:var(--ink-muted);word-break:break-all;line-height:1.5;margin:8px 0;padding:8px;background:var(--bg-input);border-radius:var(--r-sm);max-height:80px;overflow-y:auto}
 
 /* ── No-script ── */
