@@ -302,7 +302,7 @@ function renderNew() {
   renderHeader();
 
   const stack = DIV('stack');
-  stack.appendChild(backLink('/open', 'Open needs'));
+  stack.appendChild(makeTabs(null));
   stack.appendChild(DIV('', h('h1', 't1', 'What needs doing?'), h('p', 'body', "Describe it like you're telling a neighbour.")));
   w.appendChild(stack);
 
@@ -361,7 +361,7 @@ async function renderDetail(id) {
   renderHeader();
 
   const lead = DIV('stack');
-  lead.appendChild(backLink('/open', 'Open needs'));
+  lead.appendChild(makeTabs(null));
   w.appendChild(lead);
 
   let b;
@@ -405,6 +405,31 @@ async function renderDetail(id) {
 
   // description
   bodyStack.appendChild(DIV('card', h('div', '', esc(b.description))));
+
+  // "I'll do this" card - MOVED TO TOP (right after description)
+  if (b.status === 'open' && !isWorker) {
+    const claimCard = DIV('card card-action');
+    claimCard.appendChild(h('div', 'overline', '🙋 Do the work'));
+    claimCard.appendChild(hint('Claim this job, do the work, then send proof. The pledgers will pay you.'));
+    const claimBtn = BTN('btn btn-lg', "I'll do this", async () => {
+      if (claimBtn._submitting) return;
+      claimBtn._submitting = true;
+      claimBtn.disabled = true;
+      claimBtn.textContent = 'Claiming…';
+      try {
+        const sig = await signAction('Claim', { kind: 'm2s-claim', bounty: b.id });
+        await api(`/bounties/${id}/claim`, { method: 'POST', body: { worker_pubkey: ME, display_name: MENAME, community_id: COMMUNITY, ...sig } });
+        toast('Claimed.'); renderDetail(id);
+      } catch (e) {
+        toast(e.message, true);
+        claimBtn.disabled = false;
+        claimBtn.textContent = "🙋 I'll do this";
+        claimBtn._submitting = false;
+      }
+    });
+    claimCard.appendChild(claimBtn);
+    bodyStack.appendChild(claimCard);
+  }
 
   // pot card
   const pot = DIV('card');
@@ -493,30 +518,6 @@ async function renderDetail(id) {
     });
     pledgeCard.appendChild(DIV('', pBtn));
     bodyStack.appendChild(pledgeCard);
-
-    if (!isWorker) {
-      const claimCard = DIV('card card-action');
-      claimCard.appendChild(h('div', 'overline', '🙋 Do the work'));
-      claimCard.appendChild(hint('Claim this job, do the work, then send proof. The pledgers will pay you.'));
-      const claimBtn = BTN('btn btn-lg', "I'll do this", async () => {
-        if (claimBtn._submitting) return;
-        claimBtn._submitting = true;
-        claimBtn.disabled = true;
-        claimBtn.textContent = 'Claiming…';
-        try {
-          const sig = await signAction('Claim', { kind: 'm2s-claim', bounty: b.id });
-          await api(`/bounties/${id}/claim`, { method: 'POST', body: { worker_pubkey: ME, display_name: MENAME, community_id: COMMUNITY, ...sig } });
-          toast('Claimed.'); renderDetail(id);
-        } catch (e) {
-          toast(e.message, true);
-          claimBtn.disabled = false;
-          claimBtn.textContent = "🙋 I'll do this";
-          claimBtn._submitting = false;
-        }
-      });
-      claimCard.appendChild(claimBtn);
-      bodyStack.appendChild(claimCard);
-    }
   }
 
   // Actions  -  claimed (worker proof)
@@ -694,7 +695,7 @@ function renderPhilosophy() {
   renderHeader();
 
   const lead = DIV('stack');
-  lead.appendChild(backLink('/open', 'Open needs'));
+  lead.appendChild(makeTabs('philosophy'));
   lead.appendChild(h('h1', 't1', 'Why this works'));
   w.appendChild(lead);
 
@@ -741,7 +742,7 @@ async function renderLeaderboard() {
   renderHeader();
 
   const lead = DIV('stack');
-  lead.appendChild(backLink('/open', 'Open needs'));
+  lead.appendChild(makeTabs('leaderboard'));
   lead.appendChild(h('h1', 't1', 'Community heroes'));
   lead.appendChild(h('p', 'body', 'The people who show up  -  and the people who pay up.'));
   w.appendChild(lead);
@@ -781,7 +782,7 @@ async function renderPending() {
   renderHeader();
 
   const lead = DIV('stack');
-  lead.appendChild(backLink('/open', 'Open needs'));
+  lead.appendChild(makeTabs('pending'));
   lead.appendChild(h('h1', 't1', 'Pending'));
   lead.appendChild(h('p', 'body', 'Jobs you claimed and payments you owe.'));
   w.appendChild(lead);
