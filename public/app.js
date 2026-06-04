@@ -373,6 +373,11 @@ async function renderDetail(id) {
   const myPledge = b.pledges.find(p => p.pledger_pubkey === ME);
   const isWorker = b.worker_pubkey === ME;
 
+  const cat = CAT_MAP[b.category] || CAT_MAP.other;
+
+  const bodyStack = DIV('stack');
+  w.appendChild(bodyStack);
+
   // Worker trust + flags (shown on all bounties where worker exists)
   if (b.worker_pubkey) {
     const isFlagged = (b.flags || []).length > 0;
@@ -388,11 +393,6 @@ async function renderDetail(id) {
     }
     bodyStack.appendChild(workerCard);
   }
-
-  const cat = CAT_MAP[b.category] || CAT_MAP.other;
-
-  const bodyStack = DIV('stack');
-  w.appendChild(bodyStack);
 
   // title block
   const titleBlock = DIV('stack-sm padded');
