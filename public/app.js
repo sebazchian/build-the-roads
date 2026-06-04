@@ -566,7 +566,15 @@ async function renderDetail(id) {
       try {
         let b64 = null; if (pImg.files[0]) b64 = await readFile(pImg.files[0]);
         await api(`/bounties/${id}/proof`, { method: 'POST', body: { image_base64: b64, proof_note: pNote.value.trim(), worker_invoice: workerInvoice } });
-        toast('Proof sent. Pledgers will be notified to pay.'); renderDetail(id);
+        // Auto-generate BOLT11 invoices for all pledgers from worker's address
+        try {
+          const { invoices } = await api(`/bounties/${id}/invoices`, { method: 'POST' });
+          const ok = invoices.filter(inv => inv.invoice).length;
+          toast(`Proof sent. ${ok} invoices generated for pledgers.`);
+        } catch (invErr) {
+          toast('Proof sent.'); // Don't fail if invoices can't be generated right away
+        }
+        renderDetail(id);
       } catch (e) {
         toast(e.message, true);
         submitPfBtn.disabled = false;
