@@ -498,10 +498,10 @@ async function renderDetail(id) {
     bodyStack.appendChild(pledgeCard);
 
     if (!isWorker) {
-      const claimCard = DIV('card');
-      claimCard.appendChild(h('div', 'overline', 'Do the work'));
+      const claimCard = DIV('card card-action');
+      claimCard.appendChild(h('div', 'overline', '🙋 Do the work'));
       claimCard.appendChild(hint('Claim this job, do the work, then send proof. The pledgers will pay you.'));
-      const claimBtn = BTN('btn btn-ghost', "🙋 I'll do this", async () => {
+      const claimBtn = BTN('btn btn-lg', "I'll do this", async () => {
         if (claimBtn._submitting) return;
         claimBtn._submitting = true;
         claimBtn.disabled = true;
