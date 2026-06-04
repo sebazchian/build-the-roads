@@ -4,9 +4,9 @@ A community bounty board funded in sats  -  a **Fedi mini app**. Neighbors pledg
 
 > Small pledges. Real work. Nobody forced.
 
-## Status: MVP working (2026-06-03)
+## Status: MVP working (2026-06-04)
 
-Full loop functional end-to-end: pitch → pledge → claim → proof → payment → trust score → leaderboards.
+Full loop functional end-to-end: pitch → pledge → claim → proof → BOLT11 invoice → payment → trust score → leaderboards.
 
 ## Run
 
@@ -51,6 +51,7 @@ A Fedi mini app is just a website that runs inside the Fedi browser, which injec
 | POST | `/api/bounties/:id/pledge` | pledge sats |
 | POST | `/api/bounties/:id/claim` | claim bounty (worker) |
 | POST | `/api/bounties/:id/proof` | submit proof (worker) |
+| POST | `/api/bounties/:id/invoices` | generate BOLT11 invoices for pledgers |
 | POST | `/api/pledges/:id/pay` | report payment (pledger) |
 | GET | `/api/users/:pubkey` | trust + leaderboards |
 | GET | `/api/leaderboards` | top workers + top pledgers |
@@ -59,10 +60,11 @@ A Fedi mini app is just a website that runs inside the Fedi browser, which injec
 
 ## Payment Flow
 
-1. **Worker** submits proof + Lightning address
-2. **Pledger** clicks "⚡ Pay now" → WebLN resolves address → pays → preimage stored
-3. **Server** verifies preimage, marks `payment_claimed`
-4. **All paid?** Bounty auto-settles
+1. **Worker** submits proof + Lightning address or LNURL
+2. **Server** auto-generates BOLT11 invoices for each pledger from worker's address
+3. **Pledger** clicks "⚡ Pay now" → pays invoice via WebLN → preimage stored
+4. **Server** marks `paid` with preimage, or `payment_claimed` for admin verification
+5. **All paid?** Bounty auto-settles
 
 ## Trust Score
 

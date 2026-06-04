@@ -712,19 +712,22 @@ function renderPhilosophy() {
 
   const lead = DIV('stack');
   lead.appendChild(makeTabs('philosophy'));
-  const logoWrap = h('div', '');
-  logoWrap.style.textAlign = 'center';
-  logoWrap.style.margin = '24px 0';
+  const titleRow = DIV('');
+  titleRow.style.display = 'flex';
+  titleRow.style.alignItems = 'center';
+  titleRow.style.gap = '16px';
+  titleRow.style.marginTop = '12px';
+  titleRow.style.marginBottom = '16px';
   const logoImg = h('img', '');
   logoImg.src = 'favicon.png?v=1';
   logoImg.alt = 'build the roads';
-  logoImg.style.width = '96px';
-  logoImg.style.height = '96px';
+  logoImg.style.width = '64px';
+  logoImg.style.height = '64px';
   logoImg.style.borderRadius = '50%';
   logoImg.style.objectFit = 'cover';
-  logoWrap.appendChild(logoImg);
-  lead.appendChild(logoWrap);
-  lead.appendChild(h('h1', 't1', 'Why this works'));
+  titleRow.appendChild(h('h1', 't1', 'Why this works'));
+  titleRow.appendChild(logoImg);
+  lead.appendChild(titleRow);
   w.appendChild(lead);
 
   const bodyStack = DIV('stack');
