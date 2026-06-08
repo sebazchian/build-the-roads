@@ -24,9 +24,221 @@ function h(tag, cls, ...kids) {
 const DIV = (cls, ...ch) => h('div', cls, ...ch);
 const BTN = (cls, txt, on) => { const b = h('button', cls, txt); if (on) b.onclick = on; return b; };
 
+/* ── Zap Component ─────────────────────────────────────────────────────── */
+function zapButton(bounty, recipientPubkey, recipientType = 'creator') {
+  const btn = BTN('btn btn-ghost btn-sm', '⚡ Zap', async () => {
+    if (!ME) { toast('Sign in to zap', true); return; }
+    if (!hasWebLN()) { toast('WebLN wallet required', true); return; }
+    
+    const amount = prompt('Amount in sats:', '1000');
+    if (!amount) return;
+    const amt = parseInt(amount);
+    if (!amt || amt < 1) { toast('Invalid amount', true); return; }
+    
+    btn.disabled = true;
+    btn.textContent = '⚡ Sending...';
+    
+    try {
+      // Get recipient's Lightning address
+      let lnaddr = null;
+      if (recipientType === 'creator') {
+        // Try to get from user's profile or bounty
+        lnaddr = bounty.creator_lnurl || null;
+      } else {
+        lnaddr = bounty.worker_invoice || null;
+      }
+      
+      if (!lnaddr) {
+        // Prompt for manual entry
+        lnaddr = prompt('Recipient Lightning address:', '');
+        if (!lnaddr) { toast('Lightning address required', true); btn.disabled = false; btn.textContent = '⚡ Zap'; return; }
+      }
+      
+      const memo = `Zap for "${bounty.title}" on build the roads`;
+      const preimage = await sendZap(lnaddr, amt, memo);
+      
+      // Record zap in DB
+      await api('/zaps', {
+        method: 'POST',
+        body: {
+          bounty_id: bounty.id,
+          sender_pubkey: ME,
+          recipient_pubkey: recipientPubkey,
+          amount_sats: amt,
+          memo,
+          preimage,
+          display_name: MENAME,
+        }
+      });
+      
+      toast(`⚡ Zap sent! ${amt} sats`);
+      btn.textContent = '⚡ Zapped';
+      setTimeout(() => { btn.disabled = false; btn.textContent = '⚡ Zap'; }, 3000);
+    } catch (e) {
+      toast(e.message || 'Zap failed', true);
+      btn.disabled = false;
+      btn.textContent = '⚡ Zap';
+    }
+  });
+  return btn;
+}
+
+/* ── Media Player Component ────────────────────────────────────────────── */
+let CURRENT_AUDIO = null;
+let CURRENT_TRACK = null;
+
+function mediaPlayer() {
+  const player = DIV('media-player');
+  player.id = 'media-player';
+  player.style.display = 'none';
+  
+  const info = DIV('media-info');
+  const title = h('span', 'media-title', 'No track');
+  const artist = h('span', 'media-artist', '');
+  info.appendChild(title);
+  info.appendChild(artist);
+  
+  const controls = DIV('media-controls');
+  const playBtn = BTN('btn btn-sm', '▶', () => togglePlay());
+  playBtn.id = 'media-play-btn';
+  const progress = h('input', '');
+  progress.type = 'range';
+  progress.min = 0;
+  progress.max = 100;
+  progress.value = 0;
+  progress.id = 'media-progress';
+  progress.style.flex = '1';
+  progress.style.margin = '0 8px';
+  
+  const time = h('span', 'media-time', '0:00 / 0:00');
+  time.id = 'media-time';
+  
+  controls.appendChild(playBtn);
+  controls.appendChild(progress);
+  controls.appendChild(time);
+  
+  const closeBtn = BTN('btn btn-ghost btn-sm', '✕', () => {
+    if (CURRENT_AUDIO) { CURRENT_AUDIO.pause(); CURRENT_AUDIO = null; }
+    player.style.display = 'none';
+  });
+  
+  player.appendChild(info);
+  player.appendChild(controls);
+  player.appendChild(closeBtn);
+  
+  return player;
+}
+
+function togglePlay() {
+  if (!CURRENT_AUDIO) return;
+  const btn = $('media-play-btn');
+  if (CURRENT_AUDIO.paused) {
+    CURRENT_AUDIO.play();
+    btn.textContent = '⏸';
+  } else {
+    CURRENT_AUDIO.pause();
+    btn.textContent = '▶';
+  }
+}
+
+function loadTrack(track) {
+  if (CURRENT_AUDIO) { CURRENT_AUDIO.pause(); CURRENT_AUDIO = null; }
+  
+  CURRENT_TRACK = track;
+  CURRENT_AUDIO = new Audio(track.url);
+  
+  const player = $('media-player');
+  const title = player.querySelector('.media-title');
+  const artist = player.querySelector('.media-artist');
+  title.textContent = track.title;
+  artist.textContent = track.artist || '';
+  
+  CURRENT_AUDIO.addEventListener('timeupdate', () => {
+    if (!CURRENT_AUDIO) return;
+    const progress = $('media-progress');
+    const time = $('media-time');
+    if (progress && CURRENT_AUDIO.duration) {
+      progress.value = (CURRENT_AUDIO.currentTime / CURRENT_AUDIO.duration) * 100;
+      time.textContent = formatTime(CURRENT_AUDIO.currentTime) + ' / ' + formatTime(CURRENT_AUDIO.duration);
+    }
+  });
+  
+  CURRENT_AUDIO.addEventListener('ended', () => {
+    const btn = $('media-play-btn');
+    if (btn) btn.textContent = '▶';
+  });
+  
+  player.style.display = 'flex';
+  CURRENT_AUDIO.play();
+  const btn = $('media-play-btn');
+  if (btn) btn.textContent = '⏸';
+}
+
+function formatTime(seconds) {
+  if (!seconds || isNaN(seconds)) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return mins + ':' + secs.toString().padStart(2, '0');
+}
+
+/* ── Nostr Post Component ──────────────────────────────────────────────── */
+function nostrPostComposer(onPost) {
+  const card = DIV('card');
+  card.appendChild(h('div', 'overline', 'Post to Nostr'));
+  
+  const textarea = h('textarea', '');
+  textarea.placeholder = "What's happening?";
+  textarea.style.minHeight = '80px';
+  card.appendChild(textarea);
+  
+  const actions = DIV('gap-1-row');
+  
+  const postBtn = BTN('btn', 'Post', async () => {
+    const content = textarea.value.trim();
+    if (!content) { toast('Enter some text', true); return; }
+    if (!ME) { toast('Sign in first', true); return; }
+    if (!hasNostr()) { toast('Nostr extension required', true); return; }
+    
+    postBtn.disabled = true;
+    postBtn.textContent = 'Posting...';
+    
+    try {
+      const signed = await publishNostrNote(content);
+      
+      // Save to local DB
+      await api('/nostr', {
+        method: 'POST',
+        body: {
+          pubkey: ME,
+          content,
+          kind: 1,
+          tags: signed.tags,
+          sig: signed.sig,
+          event_id: signed.id,
+          display_name: MENAME,
+        }
+      });
+      
+      toast('Posted to Nostr!');
+      textarea.value = '';
+      if (onPost) onPost(signed);
+    } catch (e) {
+      toast(e.message || 'Post failed', true);
+    } finally {
+      postBtn.disabled = false;
+      postBtn.textContent = 'Post';
+    }
+  });
+  
+  actions.appendChild(postBtn);
+  card.appendChild(actions);
+  
+  return card;
+}
+
 /* ── Helpers ── */
 const esc = s => String(s || '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-const short = pk => pk ? pk.slice(0, 5) + '…' + pk.slice(-4) : ' - ';
+const short = pk => pk ? pk.slice(0, 5) + '...' + pk.slice(-4) : ' - ';
 const fmt = n => (n || 0).toLocaleString();
 const fmtS = n => fmt(n) + ' sats';
 const fmtDate = ts => {
@@ -119,13 +331,13 @@ function cName(id) {
 }
 
 /* ── Router ── */
-function go(hash) { location.hash = hash; }
-window.addEventListener('hashchange', () => route());
+function go(path) { history.pushState(null, '', path); route(); }
+window.addEventListener('popstate', () => route());
 
 async function route() {
   const app = $('app');
   app.innerHTML = '';
-  const h = location.hash.slice(1) || '/';
+  const h = location.pathname || '/';
   resolveCommunity();
   if (h === '/philosophy') { renderPhilosophy(); return; }
   if (!COMMUNITY) { renderPicker(); return; }
@@ -148,12 +360,23 @@ function renderHeader() {
   const orb = h('span', 'orb');
   orb.appendChild(makeBrandOrb());
   const brand = h('a', 'brand', orb, DIV('word', h('div', 'name', 'build the roads'), h('div', 'tag', 'community bounty board')));
-  brand.href = '#/';
+  brand.href = '/';
   brand.onclick = e => { if (e.button === 0) { go('/'); return false; }};
   hd.appendChild(brand);
 
   const right = DIV('header-right');
-  
+
+  // Subtle note for non-Fedi users without WebLN/Nostr extensions
+  if (!inFedi() && !window.webln && !window.nostr) {
+    const note = h('span', '');
+    note.style.fontSize = '10px';
+    note.style.color = 'var(--ink-dim)';
+    note.style.opacity = '0.55';
+    note.style.marginRight = '8px';
+    note.textContent = 'best in Fedi app';
+    right.appendChild(note);
+  }
+
   const actions = DIV('header-actions');
   if (COMMUNITY) {
     const badge = DIV('badge', cName(COMMUNITY));
@@ -173,7 +396,7 @@ function renderHeader() {
     meta.appendChild(h('div', 'down', short(ME)));
   }
   right.appendChild(meta);
-  
+
   hd.appendChild(right);
 }
 
@@ -225,7 +448,7 @@ function howItWorks() {
   return DIV('card help',
     h('div', 'help-title', '🤝 How it works'),
     h('div', 'help-step', h('span', 'num', '1'), h('div', '', h('b', '', 'Someone posts a need.'), '  -  Paint the hall. Fix the gate. Clean the lot.')),
-    h('div', 'help-step', h('span', 'num', '2'), h('div', '', h('b', '', 'Neighbours chip in sats.'), '  -  Pledge a small amount. If the work gets done, you pay.')),
+    h('div', 'help-step', h('span', 'num', '2'), h('div', '', h('b', '', 'Neighbors chip in sats.'), '  -  Pledge a small amount. If the work gets done, you pay.')),
     h('div', 'help-step', h('span', 'num', '3'), h('div', '', h('b', '', 'A worker claims it.'), '  -  They do the job and send proof.')),
     h('div', 'help-step', h('span', 'num', '4'), h('div', '', h('b', '', 'Pledgers pay up.'), '  -  Everyone who promised sends sats to the worker.')),
     h('div', 'help-foot', 'No upfront escrow. You hold your own money until the work is done. If someone does not pay, the community remembers.')
@@ -245,7 +468,12 @@ async function renderHome(filter) {
   wrap.appendChild(stack);
 
   wrap.appendChild(howItWorks());
-
+  
+  // Nostr post composer
+  if (ME && hasNostr()) {
+    wrap.appendChild(nostrPostComposer());
+  }
+  
   let list;
   try {
     const qs = filter ? `?status=${filter}` : '';
@@ -267,6 +495,11 @@ async function renderHome(filter) {
 
   const fab = BTN('fab', '+ Post a need', () => go('/new'));
   wrap.appendChild(fab);
+  
+  // Add media player if not exists
+  if (!$('media-player')) {
+    document.body.appendChild(mediaPlayer());
+  }
 }
 
 function bountyCard(b) {
@@ -307,7 +540,7 @@ function renderNew() {
 
   const stack = DIV('stack');
   stack.appendChild(makeTabs(null));
-  stack.appendChild(DIV('', h('h1', 't1', 'What needs doing?'), h('p', 'body', "Describe it like you're telling a neighbour.")));
+  stack.appendChild(DIV('', h('h1', 't1', 'What needs doing?'), h('p', 'body', "Describe it like you're telling a neighbor.")));
   w.appendChild(stack);
 
   w.appendChild(howItWorks());
@@ -405,12 +638,18 @@ async function renderDetail(id) {
   titleBlock.appendChild(h('span', 'tag ' + cat.cls, esc(cat.label)));
   titleBlock.appendChild(h('h1', 't2', esc(b.title)));
   titleBlock.appendChild(h('div', 'hint', `Posted by ${esc(short(b.creator_pubkey))}${b.expires_at ? ' \u00b7 Due ' + fmtDate(b.expires_at) : ''}`));
+  
+  // Zap button for creator
+  if (ME && b.creator_pubkey !== ME) {
+    titleBlock.appendChild(zapButton(b, b.creator_pubkey, 'creator'));
+  }
+  
   bodyStack.appendChild(titleBlock);
 
   // description
   bodyStack.appendChild(DIV('card', h('div', '', esc(b.description))));
 
-  // PLEDGE CARD — moved above "I'll do this"
+  // PLEDGE CARD - moved above "I'll do this"
   if (b.status === 'open') {
     const pledgeCard = DIV('card');
     pledgeCard.appendChild(h('div', 'overline', 'Your pledge'));
@@ -423,7 +662,7 @@ async function renderDetail(id) {
       if (pBtn._submitting) return;
       pBtn._submitting = true;
       pBtn.disabled = true;
-      pBtn.textContent = myPledge ? 'Updating…' : 'Pledging…';
+      pBtn.textContent = myPledge ? 'Updating...' : 'Pledging...';
       try {
         const sig = await signAction('Pledge', { kind: 'm2s-pledge', bounty: b.id });
         await api(`/bounties/${id}/pledge`, { method: 'POST', body: { pledger_pubkey: ME, display_name: MENAME, amount_sats: amt, community_id: COMMUNITY, ...sig } });
@@ -448,7 +687,7 @@ async function renderDetail(id) {
       if (claimBtn._submitting) return;
       claimBtn._submitting = true;
       claimBtn.disabled = true;
-      claimBtn.textContent = 'Claiming…';
+      claimBtn.textContent = 'Claiming...';
       try {
         const sig = await signAction('Claim', { kind: 'm2s-claim', bounty: b.id });
         await api(`/bounties/${id}/claim`, { method: 'POST', body: { worker_pubkey: ME, display_name: MENAME, community_id: COMMUNITY, ...sig } });
@@ -464,7 +703,7 @@ async function renderDetail(id) {
     bodyStack.appendChild(claimCard);
   }
 
-  // pot card — shows pledges and status
+  // pot card - shows pledges and status
   const pot = DIV('card');
   pot.appendChild(DIV('b-row',
     h('span', 'b-nums', h('span', 'big', fmt(b.pot_sats)), ' sats'),
@@ -480,7 +719,7 @@ async function renderDetail(id) {
         if (p.status === 'paid') return h('span', 'trust trust-reliable', 'paid');
         if (p.status === 'reneged') return h('span', 'trust trust-unreliable', 'reneged');
         if (p.status === 'payment_claimed') return h('span', 'trust trust-mixed', 'pending');
-        // pledged but not yet paid — show "owes" on active bounties
+        // pledged but not yet paid - show "owes" on active bounties
         if (p.status === 'pledged' && (b.status === 'proof_submitted' || b.status === 'settled')) {
           return h('span', 'trust trust-new', 'owes');
         }
@@ -545,7 +784,7 @@ async function renderDetail(id) {
 
     // Lightning address / LNURL: auto-fetch from Fedi/Alby wallet, allow manual override
     pf.appendChild(h('label', 'field-label', 'Your Lightning address or LNURL for payments'));
-    const lnHint = h('div', 'hint', 'Fetching from your wallet…');
+    const lnHint = h('div', 'hint', 'Fetching from your wallet...');
     pf.appendChild(lnHint);
     const pInv = h('input', ''); pInv.placeholder = 'you@wallet.com or LNURL1...'; pf.appendChild(pInv);
 
@@ -569,7 +808,7 @@ async function renderDetail(id) {
       }
       submitPfBtn._submitting = true;
       submitPfBtn.disabled = true;
-      submitPfBtn.textContent = 'Submitting…';
+      submitPfBtn.textContent = 'Submitting...';
       try {
         let b64 = null; if (pImg.files[0]) b64 = await readFile(pImg.files[0]);
         await api(`/bounties/${id}/proof`, { method: 'POST', body: { image_base64: b64, proof_note: pNote.value.trim(), worker_invoice: workerInvoice } });
@@ -580,7 +819,7 @@ async function renderDetail(id) {
           const errors = invoices.filter(inv => inv.error);
           if (errors.length > 0) {
             console.error('[invoice] generation errors:', errors);
-            toast(`Proof sent. ${ok} invoices generated. ${errors.length} failed — check console.`);
+            toast(`Proof sent. ${ok} invoices generated. ${errors.length} failed - check console.`);
           } else {
             toast(`Proof sent. ${ok} invoices generated for pledgers.`);
           }
@@ -743,7 +982,7 @@ function renderPhilosophy() {
   bodyStack.appendChild(DIV('card',
     h('div', 'overline', 'The new answer'),
     h('div', 'b-desc', 'It becomes somebody\'s job when enough people are willing to pay for it.'),
-    h('div', 'b-desc', 'Not through taxes or some committee. Through direct, voluntary pledges. Neighbours say, "I\'ll pay 5,000 sats if someone paints that hall." When enough people say the same thing, a worker sees the pot, does the work, and collects.'),
+    h('div', 'b-desc', 'Not through taxes or some committee. Through direct, voluntary pledges. Neighbors say, "I\'ll pay 5,000 sats if someone paints that hall." When enough people say the same thing, a worker sees the pot, does the work, and collects.'),
     h('div', 'b-desc', 'No manager or budget meeting needed. No waiting for permission. Just people who need things, people who can do things, and sats that move when work is proven.')
   ));
 
@@ -763,7 +1002,7 @@ function renderPhilosophy() {
 
   bodyStack.appendChild(DIV('card',
     h('div', 'overline', 'For the circular economy'),
-    h('div', 'b-desc', 'This is not just about spending sats. It is about earning sats by solving real problems for real neighbours. The more problems get solved, the more useful Bitcoin becomes in your community. The more useful it becomes, the more people want it.'),
+    h('div', 'b-desc', 'This is not just about spending sats. It is about earning sats by solving real problems for real neighbors. The more problems get solved, the more useful Bitcoin becomes in your community. The more useful it becomes, the more people want it.'),
     h('div', 'b-desc', 'This is how circular economies grow. One job at a time.')
   ));
 }
@@ -942,7 +1181,7 @@ function renderSignIn() {
   renderHeader();
   const card = DIV('card empty');
   card.appendChild(h('b', '', 'Sign in'));
-  card.appendChild(h('p', '', 'Checking for wallet…'));
+  card.appendChild(h('p', '', 'Checking for wallet...'));
   app.appendChild(card);
 
   // Async: detect Fedi/WebLN/Nostr before showing dev key option
@@ -971,13 +1210,15 @@ function renderSignIn() {
 }
 
 (async function boot() {
+  // Try stored dev key first, then real wallet
+  const storedPk = localStorage.getItem('***');
+  if (storedPk) { ME = storedPk; MENAME = 'Dev User'; }
+  if (!ME) try { ME = await getPubkey(); MENAME = await getDisplayName(); } catch {}
+  if (!ME) { renderSignIn(); return; }
   resolveCommunity();
   if (!COMMUNITY && !localStorage.getItem('m2s_community') && !new URLSearchParams(location.search).has('community')) {
     renderPicker(); return;
   }
-  // Try wallet immediately; if null, go to sign-in which will wait/retry
-  try { ME = await getPubkey(); MENAME = await getDisplayName(); } catch {}
-  if (!ME) { renderSignIn(); return; }
   if (!inFedi()) {
     const ban = h('div', 'dev-banner', 'Dev mode - open in Fedi app for real Lightning + Nostr.');
     document.querySelector('main').prepend(ban);
