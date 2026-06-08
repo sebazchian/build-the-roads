@@ -295,6 +295,7 @@ async function route() {
   else if (h === '/new') renderNew();
   else if (h === '/leaderboard') renderLeaderboard();
   else if (h === '/manage') renderManagePage();
+  else if (h === '/how') renderHow();
   else if (h === '/philosophy') renderPhilosophy();
   else if (h === '/pending') renderPending();
   else if (h.startsWith('/b/')) renderDetail(h.slice(3));
@@ -366,7 +367,7 @@ function makeTabs(active) {
   wrap.appendChild(mk('All', '/all', active === 'all'));
   wrap.appendChild(mk('To-do', '/pending', active === 'pending'));
   wrap.appendChild(mk('🏆', '/leaderboard', active === 'leaderboard'));
-  wrap.appendChild(mk('Why?', '/philosophy', active === 'philosophy'));
+  wrap.appendChild(mk('How?', '/how', active === 'how'));
   return wrap;
 }
 
@@ -425,7 +426,6 @@ async function renderHome(filter) {
     api('/communities/' + COMMUNITY + '/join', { method: 'POST', body: { pubkey: ME, display_name: MENAME } }).catch(() => {});
   }
 
-  wrap.appendChild(howItWorks());
   
   let list;
   try {
@@ -979,6 +979,53 @@ async function renderDetail(id) {
 
 function readFile(file) {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+}
+
+/* ================================================================
+   HOW IT WORKS (expanded)
+   ================================================================ */
+function renderHow() {
+  const w = $('app');
+  renderHeader();
+
+  const lead = DIV('stack');
+  lead.appendChild(makeTabs('how'));
+  lead.appendChild(h('h1', 't1', 'How it works'));
+  lead.appendChild(h('p', 'body', 'Build the roads is a community bounty board. No middleman. No upfront escrow. Just neighbors helping neighbors.'));
+  w.appendChild(lead);
+
+  const body = DIV('stack');
+
+  // Core flow
+  body.appendChild(howItWorks());
+
+  // For admins
+  const adminCard = DIV('card help');
+  adminCard.appendChild(h('div', 'help-title', '🛡️ For admins'));
+  adminCard.appendChild(h('div', 'help-step', h('span', 'num', '1'), h('div', '', h('b', '', 'Create a community.'), ' Set the name and region. You become the first admin automatically.')));
+  adminCard.appendChild(h('div', 'help-step', h('span', 'num', '2'), h('div', '', h('b', '', 'Post jobs.'), ' Only admins can create bounties. Describe the need, set a category, and publish.')));
+  adminCard.appendChild(h('div', 'help-step', h('span', 'num', '3'), h('div', '', h('b', '', 'Approve workers.'), ' When someone applies to a job, you review and approve them before they start working.')));
+  adminCard.appendChild(h('div', 'help-step', h('span', 'num', '4'), h('div', '', h('b', '', 'Add more admins.'), ' Go to Manage → tap "Make admin" on any community member. No typing pubkeys required.')));
+  body.appendChild(adminCard);
+
+  // For workers
+  const workerCard = DIV('card help');
+  workerCard.appendChild(h('div', 'help-title', '🛠️ For workers'));
+  workerCard.appendChild(h('div', 'help-step', h('span', 'num', '1'), h('div', '', h('b', '', 'Browse open jobs.'), ' Find something you can do in your community.')));
+  workerCard.appendChild(h('div', 'help-step', h('span', 'num', '2'), h('div', '', h('b', '', 'Apply first.'), ' Click "Apply" and wait for an admin to approve you.')));
+  workerCard.appendChild(h('div', 'help-step', h('span', 'num', '3'), h('div', '', h('b', '', 'Do the work.'), ' Once approved, claim the job, complete it, and submit proof (photo or video).')));
+  workerCard.appendChild(h('div', 'help-step', h('span', 'num', '4'), h('div', '', h('b', '', 'Get paid.'), ' Everyone who pledged pays you directly via Lightning.')));
+  body.appendChild(workerCard);
+
+  // For pledgers
+  const pledgerCard = DIV('card help');
+  pledgerCard.appendChild(h('div', 'help-title', '🤝 For pledgers'));
+  pledgerCard.appendChild(h('div', 'help-step', h('span', 'num', '1'), h('div', '', h('b', '', 'Find a need.'), ' See a job you want to support? Pledge some sats.')));
+  pledgerCard.appendChild(h('div', 'help-step', h('span', 'num', '2'), h('div', '', h('b', '', 'Hold your money.'), ' Your sats stay in your wallet. No escrow, no custody.')));
+  pledgerCard.appendChild(h('div', 'help-step', h('span', 'num', '3'), h('div', '', h('b', '', 'Pay when it\'s done.'), ' After the worker submits proof, send the sats you promised. If you do not pay, the community remembers.')));
+  body.appendChild(pledgerCard);
+
+  w.appendChild(body);
 }
 
 /* ================================================================
