@@ -1250,23 +1250,86 @@ async function renderManagePage() {
   const lead = DIV('stack');
   lead.appendChild(makeTabs(null));
   lead.appendChild(h('h1', 't1', 'Manage community'));
-  lead.appendChild(h('p', 'body', 'Add or remove admins for ' + cName(COMMUNITY) + '.'));
+  lead.appendChild(h('p', 'body', 'Manage admins for ' + cName(COMMUNITY) + '. Admins can post jobs and approve workers.'));
   w.appendChild(lead);
 
   const bodyStack = DIV('stack');
   w.appendChild(bodyStack);
 
   if (!IS_ADMIN) {
-    bodyStack.appendChild(DIV('card warn',
-      h('b', '', 'Admins only.'),
-      ' Only community admins can manage admins.'
-    ));
+    bodyStack.appendChild(DIV('card warn', h('b', '', 'Admins only.'), ' Only community admins can manage admins.'));
     return;
   }
 
+  // Load admins + members in parallel
+  let admins = [], members = [];
+  try {
+    [{ admins }, { members }] = await Promise.all([
+      api('/communities/' + COMMUNITY + '/admins'),
+      api('/communities/' + COMMUNITY + '/members?admin_pubkey=' + ME)
+    ]);
+  } catch (e) { bodyStack.appendChild(h('div', 'hint', 'Could not load data: ' + e.message)); return; }
+
+  const adminSet = new Set(admins);
+  const nonAdminMembers = members.filter(m => !adminSet.has(m.pubkey));
+
+  // ── Current Admins ──
+  const adminsCard = DIV('card');
+  adminsCard.appendChild(h('div', 'overline', 'Current admins'));
+  adminsCard.appendChild(hint('Admins can post jobs, approve workers, and manage other admins.'));
+  if (!admins.length) {
+    adminsCard.appendChild(h('div', 'hint', 'No admins yet.'));
+  } else {
+    admins.forEach(pk => {
+      const row = DIV('b-row');
+      const member = members.find(m => m.pubkey === pk);
+      const label = (member?.display_name ? esc(member.display_name) + ' — ' : '') + short(pk);
+      row.appendChild(h('span', 'pl-addr', label));
+      if (pk === ME) {
+        row.appendChild(h('span', 'hint', '(you)'));
+      } else {
+        const removeBtn = BTN('btn btn-ghost btn-sm', 'Remove', async () => {
+          if (!confirm('Remove ' + short(pk) + ' as admin?')) return;
+          try {
+            await api('/communities/' + COMMUNITY + '/admins/' + pk, { method: 'DELETE', body: { removed_by_pubkey: ME } });
+            toast('Admin removed.'); renderManagePage();
+          } catch (e) { toast(e.message, true); }
+        });
+        row.appendChild(removeBtn);
+      }
+      adminsCard.appendChild(row);
+    });
+  }
+  bodyStack.appendChild(adminsCard);
+
+  // ── Community Members (not yet admins) ──
+  const membersCard = DIV('card');
+  membersCard.appendChild(h('div', 'overline', 'Community members'));
+  membersCard.appendChild(hint('Everyone who has pledged or applied in this community. Tap “Make admin” to promote someone.'));
+  if (!nonAdminMembers.length) {
+    membersCard.appendChild(h('div', 'hint', 'No non-admin members yet. Members appear here when they pledge or apply to a job.'));
+  } else {
+    nonAdminMembers.forEach(m => {
+      const row = DIV('b-row');
+      const label = (m.display_name ? esc(m.display_name) + ' — ' : '') + short(m.pubkey);
+      row.appendChild(h('span', 'pl-addr', label));
+      const promoteBtn = BTN('btn btn-sm', 'Make admin', async () => {
+        promoteBtn.disabled = true; promoteBtn.textContent = 'Adding...';
+        try {
+          await api('/communities/' + COMMUNITY + '/admins', { method: 'POST', body: { admin_pubkey: m.pubkey, added_by_pubkey: ME } });
+          toast((m.display_name || short(m.pubkey)) + ' is now an admin.'); renderManagePage();
+        } catch (e) { toast(e.message, true); promoteBtn.disabled = false; promoteBtn.textContent = 'Make admin'; }
+      });
+      row.appendChild(promoteBtn);
+      membersCard.appendChild(row);
+    });
+  }
+  bodyStack.appendChild(membersCard);
+
+  // ── Add by pubkey (manual fallback) ──
   const addCard = DIV('card');
-  addCard.appendChild(h('div', 'overline', 'Add admin'));
-  addCard.appendChild(hint('Enter the Nostr public key of the person you want to make an admin.'));
+  addCard.appendChild(h('div', 'overline', 'Add admin by pubkey'));
+  addCard.appendChild(hint('Use this if the person has not yet signed into this community. Paste their Nostr hex public key (64 characters).'));
   const pkInput = h('input', '');
   pkInput.placeholder = 'hex public key (64 chars)';
   addCard.appendChild(pkInput);
@@ -1281,36 +1344,6 @@ async function renderManagePage() {
   });
   addCard.appendChild(DIV('gap-2', addBtn));
   bodyStack.appendChild(addCard);
-
-  const listCard = DIV('card');
-  listCard.appendChild(h('div', 'overline', 'Current admins'));
-  try {
-    const { admins } = await api('/communities/' + COMMUNITY + '/admins');
-    if (!admins.length) {
-      listCard.appendChild(h('div', 'hint', 'No admins found.'));
-    } else {
-      admins.forEach(pk => {
-        const row = DIV('b-row');
-        row.appendChild(h('span', 'pl-addr', short(pk)));
-        if (pk !== ME) {
-          const removeBtn = BTN('btn btn-ghost btn-sm', 'Remove', async () => {
-            if (!confirm('Remove this admin?')) return;
-            try {
-              await api('/communities/' + COMMUNITY + '/admins/' + pk, { method: 'DELETE', body: { removed_by_pubkey: ME } });
-              toast('Admin removed.'); renderManagePage();
-            } catch (e) { toast(e.message, true); }
-          });
-          row.appendChild(removeBtn);
-        } else {
-          row.appendChild(h('span', 'hint', '(you)'));
-        }
-        listCard.appendChild(row);
-      });
-    }
-  } catch (e) {
-    listCard.appendChild(h('div', 'hint', 'Could not load admins: ' + e.message));
-  }
-  bodyStack.appendChild(listCard);
 }
 
 (async function boot() {

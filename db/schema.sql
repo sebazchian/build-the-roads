@@ -87,6 +87,17 @@ INSERT OR IGNORE INTO communities (id, name, description, admin_pubkey)
   VALUES ('default', 'Sandbox', 'Default community for testing', '0000000000000000000000000000000000000000000000000000000000000000');
 
 -- Admins: multiple per community (creator is first admin)
+-- Members: every pubkey that has interacted with a community (auto-registered)
+CREATE TABLE IF NOT EXISTS community_members (
+  community_id  TEXT NOT NULL,
+  pubkey        TEXT NOT NULL,
+  display_name  TEXT,
+  joined_at     INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (community_id, pubkey),
+  FOREIGN KEY (community_id) REFERENCES communities(id)
+);
+CREATE INDEX IF NOT EXISTS idx_community_members_community ON community_members(community_id);
+
 CREATE TABLE IF NOT EXISTS community_admins (
   community_id  TEXT NOT NULL,
   admin_pubkey  TEXT NOT NULL,

@@ -132,6 +132,7 @@ const server = createServer(async (req, res) => {
         return send(res, 403, { error: 'Only community admins can post jobs' });
       }
       db.ensureUser(b.creator_pubkey, b.display_name);
+      db.joinCommunity(cid, b.creator_pubkey, b.display_name);
       const bounty = db.createBounty({
         title: String(b.title).slice(0, 200),
         description: String(b.description).slice(0, 2000),
@@ -170,6 +171,7 @@ const server = createServer(async (req, res) => {
         }
       }
       db.ensureUser(body.pledger_pubkey, body.display_name);
+      db.joinCommunity(body.community_id || db.getBountyById(pledgeMatch[1])?.community_id, body.pledger_pubkey, body.display_name);
       const pledge = db.upsertPledge({
         bounty_id: pledgeMatch[1], pledger_pubkey: body.pledger_pubkey,
         amount_sats: amt,
@@ -188,6 +190,7 @@ const server = createServer(async (req, res) => {
       const body = await readJson(req);
       if (!isPubkey(body.applicant_pubkey)) return send(res, 400, { error: 'valid applicant_pubkey required' });
       db.ensureUser(body.applicant_pubkey, body.display_name);
+      db.joinCommunity(db.getBountyById(applyMatch[1])?.community_id, body.applicant_pubkey, body.display_name);
       try {
         const application = db.applyForBounty({ bounty_id: applyMatch[1], applicant_pubkey: body.applicant_pubkey });
         return send(res, 201, { application });
@@ -259,6 +262,7 @@ const server = createServer(async (req, res) => {
         }
       }
       db.ensureUser(body.worker_pubkey, body.display_name);
+      db.joinCommunity(b.community_id, body.worker_pubkey, body.display_name);
       const bounty = db.claimBounty(claimMatch[1], body.worker_pubkey, body.admin_pubkey || null);
       return send(res, 200, { bounty });
     }
@@ -458,6 +462,14 @@ const server = createServer(async (req, res) => {
       const pk = url.searchParams.get('pubkey');
       if (!isPubkey(pk)) return send(res, 400, { error: 'pubkey required' });
       return send(res, 200, { is_admin: db.isAdmin(isAdminMatch[1], pk) });
+    }
+
+    // Members list — admin only
+    const membersMatch = p.match(/^\/api\/communities\/([a-z0-9-]+)\/members$/);
+    if (membersMatch && req.method === 'GET') {
+      const pk = url.searchParams.get('admin_pubkey');
+      if (!isPubkey(pk) || !db.isAdmin(membersMatch[1], pk)) return send(res, 403, { error: 'admin required' });
+      return send(res, 200, { members: db.listMembers(membersMatch[1]) });
     }
 
     if (p === '/api/communities/my' && req.method === 'GET') {
