@@ -1243,6 +1243,76 @@ function renderSignIn() {
   })();
 }
 
+async function renderManagePage() {
+  const w = $('app');
+  renderHeader();
+
+  const lead = DIV('stack');
+  lead.appendChild(makeTabs(null));
+  lead.appendChild(h('h1', 't1', 'Manage community'));
+  lead.appendChild(h('p', 'body', 'Add or remove admins for ' + cName(COMMUNITY) + '.'));
+  w.appendChild(lead);
+
+  const bodyStack = DIV('stack');
+  w.appendChild(bodyStack);
+
+  if (!IS_ADMIN) {
+    bodyStack.appendChild(DIV('card warn',
+      h('b', '', 'Admins only.'),
+      ' Only community admins can manage admins.'
+    ));
+    return;
+  }
+
+  const addCard = DIV('card');
+  addCard.appendChild(h('div', 'overline', 'Add admin'));
+  addCard.appendChild(hint('Enter the Nostr public key of the person you want to make an admin.'));
+  const pkInput = h('input', '');
+  pkInput.placeholder = 'hex public key (64 chars)';
+  addCard.appendChild(pkInput);
+  const addBtn = BTN('btn', 'Add admin', async () => {
+    const pk = pkInput.value.trim().toLowerCase();
+    if (!pk || pk.length !== 64) { toast('Enter a valid 64-character hex public key', true); return; }
+    addBtn.disabled = true; addBtn.textContent = 'Adding...';
+    try {
+      await api('/communities/' + COMMUNITY + '/admins', { method: 'POST', body: { admin_pubkey: pk, added_by_pubkey: ME } });
+      toast('Admin added.'); pkInput.value = ''; renderManagePage();
+    } catch (e) { toast(e.message, true); addBtn.disabled = false; addBtn.textContent = 'Add admin'; }
+  });
+  addCard.appendChild(DIV('gap-2', addBtn));
+  bodyStack.appendChild(addCard);
+
+  const listCard = DIV('card');
+  listCard.appendChild(h('div', 'overline', 'Current admins'));
+  try {
+    const { admins } = await api('/communities/' + COMMUNITY + '/admins');
+    if (!admins.length) {
+      listCard.appendChild(h('div', 'hint', 'No admins found.'));
+    } else {
+      admins.forEach(pk => {
+        const row = DIV('b-row');
+        row.appendChild(h('span', 'pl-addr', short(pk)));
+        if (pk !== ME) {
+          const removeBtn = BTN('btn btn-ghost btn-sm', 'Remove', async () => {
+            if (!confirm('Remove this admin?')) return;
+            try {
+              await api('/communities/' + COMMUNITY + '/admins/' + pk, { method: 'DELETE', body: { removed_by_pubkey: ME } });
+              toast('Admin removed.'); renderManagePage();
+            } catch (e) { toast(e.message, true); }
+          });
+          row.appendChild(removeBtn);
+        } else {
+          row.appendChild(h('span', 'hint', '(you)'));
+        }
+        listCard.appendChild(row);
+      });
+    }
+  } catch (e) {
+    listCard.appendChild(h('div', 'hint', 'Could not load admins: ' + e.message));
+  }
+  bodyStack.appendChild(listCard);
+}
+
 (async function boot() {
   // Try real wallet first; dev key is absolute last backup
   try { ME = await getPubkey(); MENAME = await getDisplayName(); } catch {}
