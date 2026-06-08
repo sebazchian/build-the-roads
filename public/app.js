@@ -1,8 +1,8 @@
 /* build the roads  -  clean, no-weird-links */
-import { getPubkey, getDisplayName, signAction, makeInvoice, payInvoice, getLightningAddress, getLnurl, resolveInvoiceFromAddress, inFedi, hasWebLN, hasNostr, generateDevKey, copyToClipboard } from './fedi.js';
+import { getPubkey, getDisplayName, signAction, makeInvoice, payInvoice, getLightningAddress, getLnurl, resolveInvoiceFromAddress, inFedi, hasWebLN, hasNostr, generateDevKey, copyToClipboard, postNote, LS_KEY } from './fedi.js';
 
 /* ── State ── */
-let ME=null, MENAME=null, COMMUNITY=null, ALL_COMMUNITIES=[];
+let ME=null, MENAME=null, COMMUNITY=null, ALL_COMMUNITIES=[], IS_ADMIN=false;
 let ACTION_COUNT=0; // cached pending items for header/tab styling
 
 /* ── DOM builders ── */
@@ -342,6 +342,8 @@ async function route() {
   if (h === '/philosophy') { renderPhilosophy(); return; }
   if (!COMMUNITY) { renderPicker(); return; }
   if (!ME) { renderSignIn(); return; }
+  // Resolve admin status for this community/user
+  IS_ADMIN = await api(`/communities/${COMMUNITY}/is-admin?pubkey=${ME}`).then(r => r.is_admin).catch(() => false);
   await refreshActionCount(); // wait for count so header highlights correctly
   if (h === '/' || h === '/open') renderHome('open');
   else if (h === '/all') renderHome(null);
@@ -493,8 +495,14 @@ async function renderHome(filter) {
   }
   wrap.appendChild(list);
 
-  const fab = BTN('fab', '+ Post a need', () => go('/new'));
-  wrap.appendChild(fab);
+  if (IS_ADMIN) {
+    const fab = BTN('fab', '+ Post a need', () => go('/new'));
+    wrap.appendChild(fab);
+  } else {
+    const notice = DIV('card');
+    notice.appendChild(h('div', 'hint', 'Only admins can post jobs in this community.'));
+    wrap.appendChild(notice);
+  }
   
   // Add media player if not exists
   if (!$('media-player')) {
@@ -545,6 +553,15 @@ function renderNew() {
 
   w.appendChild(howItWorks());
 
+  if (!IS_ADMIN) {
+    const gate = DIV('card');
+    gate.appendChild(h('div', 'overline', 'Admins only'));
+    gate.appendChild(h('div', 'hint', 'Only admins can post jobs.'));
+    gate.appendChild(DIV('gap-2', backLink('/', 'Back to jobs')));
+    w.appendChild(gate);
+    return;
+  }
+
   const card = DIV('card');
 
   const fTitle = h('input', ''); fTitle.placeholder = 'e.g. Clean up the lot behind the rec centre'; fTitle.maxLength = 200;
@@ -582,7 +599,10 @@ function renderNew() {
       };
       if (!body.title || !body.description) throw new Error('Need a title and story.');
       const { bounty } = await api('/bounties', { method: 'POST', body });
-      toast('Posted.'); go('/b/' + bounty.id);
+      toast('Posted.');
+      // Notify community via Nostr
+      await postNote(`New job posted in ${COMMUNITY}: "${body.title}" — build the roads`, [['r', `/b/${bounty.id}`]]);
+      go('/b/' + bounty.id);
     } catch (e) { toast(e.message, true); submit.disabled = false; }
   });
   card.appendChild(DIV('gap-2', submit));
@@ -638,6 +658,9 @@ async function renderDetail(id) {
   titleBlock.appendChild(h('span', 'tag ' + cat.cls, esc(cat.label)));
   titleBlock.appendChild(h('h1', 't2', esc(b.title)));
   titleBlock.appendChild(h('div', 'hint', `Posted by ${esc(short(b.creator_pubkey))}${b.expires_at ? ' \u00b7 Due ' + fmtDate(b.expires_at) : ''}`));
+  if (IS_ADMIN) {
+    titleBlock.appendChild(h('span', 'trust trust-reliable', '\u2605 You are an admin'));
+  }
   
   // Zap button for creator
   if (ME && b.creator_pubkey !== ME) {
@@ -648,6 +671,42 @@ async function renderDetail(id) {
 
   // description
   bodyStack.appendChild(DIV('card', h('div', '', esc(b.description))));
+
+  // ADMIN: Applications management
+  if (b.status === 'open' && IS_ADMIN) {
+    const apps = b.applications || [];
+    const pending = apps.filter(a => a.status === 'pending');
+    const appsCard = DIV('card');
+    appsCard.appendChild(h('div', 'overline', '\ud83d\udcdd Applications'));
+    if (!pending.length) {
+      appsCard.appendChild(h('div', 'hint', 'No pending applications yet.'));
+    } else {
+      pending.forEach(a => {
+        const row = DIV('pl-row');
+        row.appendChild(DIV('pl-who', h('span', 'pl-addr', short(a.applicant_pubkey)), a.display_name ? h('span', 'hint', esc(a.display_name)) : null));
+        const btns = DIV('gap-1-row');
+        const approveBtn = BTN('btn btn-sm', 'Approve', async () => {
+          approveBtn.disabled = true; approveBtn.textContent = 'Approving...';
+          try {
+            await api(`/applications/${a.id}/approve`, { method: 'POST', body: { admin_pubkey: ME } });
+            toast('Approved.'); renderDetail(id);
+          } catch (e) { toast(e.message, true); approveBtn.disabled = false; approveBtn.textContent = 'Approve'; }
+        });
+        const rejectBtn = BTN('btn btn-ghost btn-sm', 'Reject', async () => {
+          rejectBtn.disabled = true; rejectBtn.textContent = 'Rejecting...';
+          try {
+            await api(`/applications/${a.id}/reject`, { method: 'POST', body: { admin_pubkey: ME } });
+            toast('Rejected.'); renderDetail(id);
+          } catch (e) { toast(e.message, true); rejectBtn.disabled = false; rejectBtn.textContent = 'Reject'; }
+        });
+        btns.appendChild(approveBtn);
+        btns.appendChild(rejectBtn);
+        row.appendChild(btns);
+        appsCard.appendChild(row);
+      });
+    }
+    bodyStack.appendChild(appsCard);
+  }
 
   // PLEDGE CARD - moved above "I'll do this"
   if (b.status === 'open') {
@@ -666,7 +725,9 @@ async function renderDetail(id) {
       try {
         const sig = await signAction('Pledge', { kind: 'm2s-pledge', bounty: b.id });
         await api(`/bounties/${id}/pledge`, { method: 'POST', body: { pledger_pubkey: ME, display_name: MENAME, amount_sats: amt, community_id: COMMUNITY, ...sig } });
-        toast('Pledged.'); renderDetail(id);
+        toast('Pledged.');
+        await postNote(`Pledged to "${b.title}"`, [['r', `/b/${id}`]]);
+        renderDetail(id);
       } catch (e) {
         toast(e.message, true);
         pBtn.disabled = false;
@@ -678,29 +739,53 @@ async function renderDetail(id) {
     bodyStack.appendChild(pledgeCard);
   }
 
-  // "I'll do this" card
+  // APPLY CARD (replaces "I'll do this")
   if (b.status === 'open' && !isWorker) {
-    const claimCard = DIV('card card-action');
-    claimCard.appendChild(h('div', 'overline', '🙋 Do the work'));
-    claimCard.appendChild(hint('Claim this job, do the work, then send proof. The pledgers will pay you.'));
-    const claimBtn = BTN('btn btn-lg', "I'll do this", async () => {
-      if (claimBtn._submitting) return;
-      claimBtn._submitting = true;
-      claimBtn.disabled = true;
-      claimBtn.textContent = 'Claiming...';
-      try {
-        const sig = await signAction('Claim', { kind: 'm2s-claim', bounty: b.id });
-        await api(`/bounties/${id}/claim`, { method: 'POST', body: { worker_pubkey: ME, display_name: MENAME, community_id: COMMUNITY, ...sig } });
-        toast('Claimed.'); renderDetail(id);
-      } catch (e) {
-        toast(e.message, true);
-        claimBtn.disabled = false;
-        claimBtn.textContent = "🙋 I'll do this";
-        claimBtn._submitting = false;
+    const myApp = b.applications?.find(a => a.applicant_pubkey === ME);
+    if (myApp) {
+      if (myApp.status === 'pending') {
+        bodyStack.appendChild(DIV('card', h('span', 'hint', '📤 Application pending. Waiting for admin approval.')));
+      } else if (myApp.status === 'rejected') {
+        bodyStack.appendChild(DIV('card warn', h('span', 'hint', '❌ Your application was rejected.')));
       }
-    });
-    claimCard.appendChild(claimBtn);
-    bodyStack.appendChild(claimCard);
+      // if approved, show "Claim" button below
+    }
+    if (!myApp || myApp.status === 'rejected') {
+      const applyCard = DIV('card card-action');
+      applyCard.appendChild(h('div', 'overline', '🙋 Apply to work'));
+      applyCard.appendChild(hint('Apply to do this job. An admin must approve you before you can start.'));
+      const applyBtn = BTN('btn btn-lg', 'Apply', async () => {
+        if (applyBtn._submitting) return;
+        applyBtn._submitting = true; applyBtn.disabled = true;
+        applyBtn.textContent = 'Applying...';
+        try {
+          await api(`/bounties/${id}/apply`, { method: 'POST', body: { applicant_pubkey: ME, display_name: MENAME } });
+          toast('Applied. Waiting for admin approval.');
+          await postNote(`Applied to: "${b.title}" on build the roads`, [['r', `/b/${id}`]]);
+          renderDetail(id);
+        } catch (e) { toast(e.message, true); applyBtn.disabled = false; applyBtn.textContent = 'Apply'; applyBtn._submitting = false; }
+      });
+      applyCard.appendChild(applyBtn);
+      bodyStack.appendChild(applyCard);
+    }
+    // If approved, show claim button
+    if (myApp?.status === 'approved') {
+      const claimCard = DIV('card card-action');
+      claimCard.appendChild(h('div', 'overline', '✅ Approved! Start working'));
+      const claimBtn = BTN('btn btn-lg', "I'll do this", async () => {
+        if (claimBtn._submitting) return;
+        claimBtn._submitting = true; claimBtn.disabled = true; claimBtn.textContent = 'Claiming...';
+        try {
+          const sig = await signAction('Claim', { kind: 'm2s-claim', bounty: b.id });
+          await api(`/bounties/${id}/claim`, { method: 'POST', body: { worker_pubkey: ME, display_name: MENAME, community_id: COMMUNITY, ...sig } });
+          toast('Claimed! Time to do the work.');
+          await postNote(`Claimed: "${b.title}" on build the roads`, [['r', `/b/${id}`]]);
+          renderDetail(id);
+        } catch (e) { toast(e.message, true); claimBtn.disabled = false; claimBtn.textContent = "I'll do this"; claimBtn._submitting = false; }
+      });
+      claimCard.appendChild(claimBtn);
+      bodyStack.appendChild(claimCard);
+    }
   }
 
   // pot card - shows pledges and status
@@ -812,6 +897,7 @@ async function renderDetail(id) {
       try {
         let b64 = null; if (pImg.files[0]) b64 = await readFile(pImg.files[0]);
         await api(`/bounties/${id}/proof`, { method: 'POST', body: { image_base64: b64, proof_note: pNote.value.trim(), worker_invoice: workerInvoice } });
+        await postNote(`Proof submitted for "${b.title}"`, [['r', `/b/${id}`]]);
         // Auto-generate BOLT11 invoices for all pledgers from worker's address
         try {
           const { invoices } = await api(`/bounties/${id}/invoices`, { method: 'POST' });
@@ -909,7 +995,9 @@ async function renderDetail(id) {
               }
               const preimage = await payInvoice(invoiceToPay);
               await api(`/pledges/${myPledge.id}/pay`, { method: 'POST', body: { preimage } });
-              toast('Payment recorded. Preimage stored for verification.'); renderDetail(id);
+              toast('Payment recorded. Preimage stored for verification.');
+              await postNote(`Paid for "${b.title}"`, [['r', `/b/${id}`]]);
+              renderDetail(id);
             } catch (e) { toast(e.message === 'NO_WEBLN' ? 'Wallet not connected' : e.message, true); }
           }));
         }
@@ -1211,7 +1299,7 @@ function renderSignIn() {
 
 (async function boot() {
   // Try stored dev key first, then real wallet
-  const storedPk = localStorage.getItem('***');
+  const storedPk = localStorage.getItem(LS_KEY);
   if (storedPk) { ME = storedPk; MENAME = 'Dev User'; }
   if (!ME) try { ME = await getPubkey(); MENAME = await getDisplayName(); } catch {}
   if (!ME) { renderSignIn(); return; }

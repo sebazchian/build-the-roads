@@ -5,7 +5,7 @@ export const inFedi = () => typeof window !== 'undefined' && !!window.fedi;
 export const hasWebLN = () => typeof window !== 'undefined' && !!window.webln;
 export const hasNostr = () => typeof window !== 'undefined' && !!window.nostr?.getPublicKey;
 
-const LS_KEY = 'm2s_dev_pubkey';
+export const LS_KEY = 'm2s_dev_pubkey';
 
 // --- Identity ---
 export async function getPubkey() {
@@ -147,6 +147,111 @@ export async function resolveInvoiceFromAddress(lightningAddress, amountSats, me
   } catch (e) { throw new Error('LNURL callback failed'); }
   if (cbResp.status === 'ERROR') throw new Error(cbResp.reason || 'LNURL callback error');
   return { invoice: cbResp.pr, via: 'lnurl' };
+}
+
+// --- Zap (Lightning tip) ---
+// Send a zap to a recipient. Returns preimage or throws.
+export async function sendZap(recipientLnurl, amountSats, memo) {
+  if (!hasWebLN()) throw new Error('NO_WEBLN');
+  await window.webln.enable();
+  
+  // Resolve recipient's LNURL to get callback
+  let callback, minSendable, maxSendable;
+  if (recipientLnurl.includes('@')) {
+    // Lightning address
+    const [user, domain] = recipientLnurl.split('@');
+    const resp = await fetch(`https://${domain}/.well-known/lnurlp/${user}`);
+    const meta = await resp.json();
+    if (meta.status === 'ERROR') throw new Error(meta.reason || 'LNURL error');
+    callback = meta.callback;
+    minSendable = meta.minSendable;
+    maxSendable = meta.maxSendable;
+  } else if (recipientLnurl.toLowerCase().startsWith('lnurl')) {
+    // Raw LNURL
+    const decoded = bech32Decode(recipientLnurl);
+    const resp = await fetch(decoded);
+    const meta = await resp.json();
+    if (meta.status === 'ERROR') throw new Error(meta.reason || 'LNURL error');
+    callback = meta.callback;
+    minSendable = meta.minSendable;
+    maxSendable = meta.maxSendable;
+  } else {
+    throw new Error('Invalid recipient LNURL/address');
+  }
+  
+  const amountMsats = amountSats * 1000;
+  if (amountMsats < minSendable || amountMsats > maxSendable) {
+    throw new Error(`Amount must be between ${minSendable/1000} and ${maxSendable/1000} sats`);
+  }
+  
+  // Get invoice
+  const cbResp = await fetch(`${callback}?amount=${amountMsats}&comment=${encodeURIComponent(memo || '')}`);
+  const cbData = await cbResp.json();
+  if (cbData.status === 'ERROR') throw new Error(cbData.reason || 'Invoice generation failed');
+  
+  // Pay via WebLN
+  const result = await window.webln.sendPayment(cbData.pr);
+  return result.preimage;
+}
+
+// --- Nostr posting ---
+// Publish a note to Nostr relays via NIP-07
+export async function publishNostrNote(content, tags = []) {
+  if (!hasNostr()) throw new Error('NO_NOSTR');
+  
+  const event = {
+    kind: 1,
+    created_at: Math.floor(Date.now() / 1000),
+    tags,
+    content,
+  };
+  
+  const signed = await window.nostr.signEvent(event);
+  return signed;
+}
+
+// --- Bech32 decode helper ---
+function bech32Decode(lnurl) {
+  // Simple bech32 decode for LNURL
+  // In production, use proper bech32 library
+  if (lnurl.toLowerCase().startsWith('lnurl1')) {
+    // Return as-is for now - caller should handle
+    return lnurl;
+  }
+  return lnurl;
+}
+
+// --- Nostr Event Publishing ---
+export async function postNote(content, tags = []) {
+  // Fedi-specific: use window.fedi.postNote if available
+  if (window.fedi?.postNote) {
+    try {
+      return await window.fedi.postNote({ content, tags });
+    } catch (e) { console.warn('fedi.postNote failed', e); }
+  }
+  // Generic Nostr: sign via window.nostr and optionally submit to relay
+  if (window.nostr?.signEvent) {
+    try {
+      const event = { kind: 1, created_at: Math.floor(Date.now() / 1000), tags, content };
+      const sig = await window.nostr.signEvent(event);
+      // Save to our backend (relay submission is optional)
+      await fetch('/api/nostr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pubkey: sig.pubkey, content, kind: 1, tags, sig: sig.sig, event_id: sig.id })
+      });
+      return sig;
+    } catch (e) { console.warn('nostr.postNote failed', e); }
+  }
+  // Dev fallback: just save to backend without signing
+  try {
+    await fetch('/api/nostr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pubkey: '0000000000000000000000000000000000000000000000000000000000000000', content, kind: 1, tags })
+    });
+  } catch (e) { /* dev noop */ }
+  return null;
 }
 
 // --- Fallback helpers for UI ---

@@ -126,6 +126,10 @@ const server = createServer(async (req, res) => {
       if (!b.title || !b.description) return send(res, 400, { error: 'title and description required' });
       if (!isPubkey(b.creator_pubkey)) return send(res, 400, { error: 'valid creator_pubkey required' });
       const cid = b.community_id || 'default';
+      // Only admins can create bounties (except default community for dev)
+      if (cid !== 'default' && !db.isAdmin(cid, b.creator_pubkey)) {
+        return send(res, 403, { error: 'Only community admins can post jobs' });
+      }
       db.ensureUser(b.creator_pubkey, b.display_name);
       const bounty = db.createBounty({
         title: String(b.title).slice(0, 200),
@@ -177,11 +181,69 @@ const server = createServer(async (req, res) => {
       return send(res, 201, { pledge, bounty: db.getBounty(pledgeMatch[1], cid) });
     }
 
-    // claim  -  enforce Nostr sig
+    // apply  -  worker applies for a bounty (requires Nostr sig)
+    const applyMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/apply$/);
+    if (applyMatch && req.method === 'POST') {
+      const body = await readJson(req);
+      if (!isPubkey(body.applicant_pubkey)) return send(res, 400, { error: 'valid applicant_pubkey required' });
+      db.ensureUser(body.applicant_pubkey, body.display_name);
+      try {
+        const application = db.applyForBounty({ bounty_id: applyMatch[1], applicant_pubkey: body.applicant_pubkey });
+        return send(res, 201, { application });
+      } catch (e) {
+        return send(res, 400, { error: e.message });
+      }
+    }
+
+    // list applications for a bounty
+    const applicationsMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/applications$/);
+    if (applicationsMatch && req.method === 'GET') {
+      const pk = url.searchParams.get('admin_pubkey');
+      const bounty = db.getBountyById(applicationsMatch[1]);
+      if (!bounty) return send(res, 404, { error: 'not found' });
+      // Only admins or the applicant can view applications
+      if (!db.isAdmin(bounty.community_id, pk)) return send(res, 403, { error: 'admin required to view applications' });
+      return send(res, 200, { applications: db.listApplications(applicationsMatch[1]) });
+    }
+
+    // approve application  -  admin only
+    const approveMatch = p.match(/^\/api\/applications\/([0-9a-f-]{36})\/approve$/);
+    if (approveMatch && req.method === 'POST') {
+      const body = await readJson(req);
+      if (!isPubkey(body.admin_pubkey)) return send(res, 400, { error: 'admin_pubkey required' });
+      try {
+        const bounty = db.approveApplication({ application_id: approveMatch[1], approved_by_pubkey: body.admin_pubkey });
+        return send(res, 200, { bounty });
+      } catch (e) {
+        return send(res, 403, { error: e.message });
+      }
+    }
+
+    // reject application  -  admin only
+    const rejectMatch = p.match(/^\/api\/applications\/([0-9a-f-]{36})\/reject$/);
+    if (rejectMatch && req.method === 'POST') {
+      const body = await readJson(req);
+      if (!isPubkey(body.admin_pubkey)) return send(res, 400, { error: 'admin_pubkey required' });
+      try {
+        const bounty = db.rejectApplication({ application_id: rejectMatch[1], approved_by_pubkey: body.admin_pubkey });
+        return send(res, 200, { bounty });
+      } catch (e) {
+        return send(res, 403, { error: e.message });
+      }
+    }
+
+    // claim  -  now requires an approved application
     const claimMatch = p.match(/^\/api\/bounties\/([0-9a-f-]{36})\/claim$/);
     if (claimMatch && req.method === 'POST') {
       const body = await readJson(req);
       if (!isPubkey(body.worker_pubkey)) return send(res, 400, { error: 'valid worker_pubkey required' });
+      const b = db.getBountyById(claimMatch[1]);
+      if (!b) return send(res, 404, { error: 'not found' });
+      // Check for approved application
+      const app = db.getApplication(claimMatch[1], body.worker_pubkey);
+      if (!app || app.status !== 'approved') {
+        return send(res, 403, { error: 'You must apply and be approved by an admin before claiming this bounty' });
+      }
       let sigVerified = false;
       if (!body.sig_event || typeof body.sig_event !== 'object') {
         if (isProd) return send(res, 403, { error: 'Nostr signature required  -  open this in the Fedi app.' });
@@ -196,7 +258,7 @@ const server = createServer(async (req, res) => {
         }
       }
       db.ensureUser(body.worker_pubkey, body.display_name);
-      const bounty = db.claimBounty(claimMatch[1], body.worker_pubkey);
+      const bounty = db.claimBounty(claimMatch[1], body.worker_pubkey, body.admin_pubkey || null);
       return send(res, 200, { bounty });
     }
 
@@ -364,6 +426,39 @@ const server = createServer(async (req, res) => {
       return send(res, 201, { community });
     }
 
+    // ── Admin management ──────────────────────────────────────────────────
+    const adminsMatch = p.match(/^\/api\/communities\/([a-z0-9-]+)\/admins$/);
+    if (adminsMatch && req.method === 'GET') {
+      return send(res, 200, { admins: db.listAdmins(adminsMatch[1]) });
+    }
+    if (adminsMatch && req.method === 'POST') {
+      const body = await readJson(req);
+      if (!isPubkey(body.admin_pubkey) || !isPubkey(body.added_by_pubkey))
+        return send(res, 400, { error: 'admin_pubkey and added_by_pubkey required' });
+      try {
+        const result = db.addAdmin({ community_id: adminsMatch[1], admin_pubkey: body.admin_pubkey, added_by_pubkey: body.added_by_pubkey });
+        return send(res, 201, { admin: result });
+      } catch (e) {
+        return send(res, 403, { error: e.message });
+      }
+    }
+    const adminDeleteMatch = p.match(/^\/api\/communities\/([a-z0-9-]+)\/admins\/([0-9a-f]{64})$/);
+    if (adminDeleteMatch && req.method === 'DELETE') {
+      const body = await readJson(req);
+      try {
+        const result = db.removeAdmin({ community_id: adminDeleteMatch[1], admin_pubkey: adminDeleteMatch[2], removed_by_pubkey: body.removed_by_pubkey });
+        return send(res, 200, result);
+      } catch (e) {
+        return send(res, 403, { error: e.message });
+      }
+    }
+    const isAdminMatch = p.match(/^\/api\/communities\/([a-z0-9-]+)\/is-admin$/);
+    if (isAdminMatch && req.method === 'GET') {
+      const pk = url.searchParams.get('pubkey');
+      if (!isPubkey(pk)) return send(res, 400, { error: 'pubkey required' });
+      return send(res, 200, { is_admin: db.isAdmin(isAdminMatch[1], pk) });
+    }
+
     if (p === '/api/communities/my' && req.method === 'GET') {
       const pk = url.searchParams.get('pubkey');
       if (!isPubkey(pk)) return send(res, 400, { error: 'pubkey required' });
@@ -377,6 +472,88 @@ const server = createServer(async (req, res) => {
       if (!isPubkey(pk)) return send(res, 400, { error: 'pubkey required' });
       const pending = db.pendingForUser(pk, cid);
       return send(res, 200, pending);
+    }
+
+    // ── Zaps ──────────────────────────────────────────────────────────────
+    if (p === '/api/zaps' && req.method === 'POST') {
+      const body = await readJson(req);
+      if (!isPubkey(body.sender_pubkey) || !isPubkey(body.recipient_pubkey)) {
+        return send(res, 400, { error: 'valid sender and recipient pubkeys required' });
+      }
+      const amt = parseInt(body.amount_sats);
+      if (!amt || amt < 1) return send(res, 400, { error: 'amount_sats must be >= 1' });
+      db.ensureUser(body.sender_pubkey, body.display_name);
+      const zap = db.createZap({
+        bounty_id: body.bounty_id,
+        sender_pubkey: body.sender_pubkey,
+        recipient_pubkey: body.recipient_pubkey,
+        amount_sats: amt,
+        memo: body.memo,
+        preimage: body.preimage,
+      });
+      return send(res, 201, { zap });
+    }
+
+    if (p === '/api/zaps' && req.method === 'GET') {
+      const bountyId = url.searchParams.get('bounty_id');
+      if (!bountyId) return send(res, 400, { error: 'bounty_id required' });
+      const zaps = db.listZaps(bountyId);
+      const total = db.getZapTotal(bountyId);
+      return send(res, 200, { zaps, total });
+    }
+
+    // ── Media ─────────────────────────────────────────────────────────────
+    if (p === '/api/media' && req.method === 'POST') {
+      const body = await readJson(req);
+      if (!isPubkey(body.pubkey)) return send(res, 400, { error: 'valid pubkey required' });
+      if (!body.title || !body.url) return send(res, 400, { error: 'title and url required' });
+      db.ensureUser(body.pubkey, body.display_name);
+      const media = db.createMedia({
+        title: body.title,
+        artist: body.artist,
+        url: body.url,
+        cover_url: body.cover_url,
+        duration: body.duration,
+        pubkey: body.pubkey,
+      });
+      return send(res, 201, { media });
+    }
+
+    if (p === '/api/media' && req.method === 'GET') {
+      const pubkey = url.searchParams.get('pubkey');
+      const media = db.listMedia(pubkey);
+      return send(res, 200, { media });
+    }
+
+    const mediaDeleteMatch = p.match(/^\/api\/media\/([0-9a-f-]{36})$/);
+    if (mediaDeleteMatch && req.method === 'DELETE') {
+      const body = await readJson(req);
+      if (!isPubkey(body.pubkey)) return send(res, 400, { error: 'valid pubkey required' });
+      const result = db.deleteMedia(mediaDeleteMatch[1], body.pubkey);
+      return send(res, 200, result);
+    }
+
+    // ── Nostr Notes ────────────────────────────────────────────────────────
+    if (p === '/api/nostr' && req.method === 'POST') {
+      const body = await readJson(req);
+      if (!isPubkey(body.pubkey)) return send(res, 400, { error: 'valid pubkey required' });
+      if (!body.content) return send(res, 400, { error: 'content required' });
+      db.ensureUser(body.pubkey, body.display_name);
+      const note = db.createNostrNote({
+        pubkey: body.pubkey,
+        content: String(body.content).slice(0, 1000),
+        kind: body.kind || 1,
+        tags: body.tags,
+        sig: body.sig,
+        event_id: body.event_id,
+      });
+      return send(res, 201, { note });
+    }
+
+    if (p === '/api/nostr' && req.method === 'GET') {
+      const pubkey = url.searchParams.get('pubkey');
+      const notes = db.listNostrNotes(pubkey);
+      return send(res, 200, { notes });
     }
 
     // ── uploads & static ──

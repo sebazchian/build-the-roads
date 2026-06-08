@@ -299,6 +299,26 @@ select{
 .help-step .num{min-width:22px;height:22px;border-radius:50%;background:var(--accent-dim);color:var(--accent);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .help-foot{font-size:12px;color:var(--ink-muted);margin-top:calc(var(--s)*1.5);padding-top:calc(var(--s)*1.5);border-top:1px solid var(--border)}
 
+.help-foot{font-size:12px;color:var(--ink-muted);margin-top:calc(var(--s)*1.5);padding-top:calc(var(--s)*1.5);border-top:1px solid var(--border)}
+
+/* ── Media Player ── */
+.media-player{position:fixed;bottom:0;left:0;right:0;background:var(--bg-raised);border-top:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:12px;z-index:100}
+.media-player .media-info{flex:0 0 auto;min-width:120px}
+.media-player .media-title{display:block;font-weight:600;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.media-player .media-artist{display:block;font-size:11px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.media-player .media-controls{flex:1;display:flex;align-items:center;gap:8px}
+.media-player .media-time{font-size:11px;color:var(--ink-muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.media-player input[type="range"]{-webkit-appearance:none;height:4px;background:var(--bg-input);border-radius:2px;outline:none}
+.media-player input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);cursor:pointer}
+
+/* ── Nostr Post Composer ── */
+.nostr-composer textarea{width:100%;min-height:80px;padding:12px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg-input);color:var(--ink);font-family:var(--font);font-size:14px;resize:vertical;margin-bottom:8px}
+.nostr-composer textarea:focus{outline:none;border-color:var(--accent)}
+
+/* ── Zap Button ── */
+.zap-btn{background:linear-gradient(135deg,#FF9419,#FFD700);color:#000;font-weight:600;border:none}
+.zap-btn:hover{opacity:.9;transform:scale(1.05)}
+
 /* ── Sign-in ── */
 .signin{text-align:center;padding:40px 20px}
 .signin .orb-wrap{display:flex;justify-content:center;margin-bottom:16px}

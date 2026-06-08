@@ -86,7 +86,73 @@ CREATE INDEX IF NOT EXISTS idx_communities_id ON communities(id);
 INSERT OR IGNORE INTO communities (id, name, description, admin_pubkey)
   VALUES ('default', 'Sandbox', 'Default community for testing', '0000000000000000000000000000000000000000000000000000000000000000');
 
--- Flags: pledgers flagging bad/fake work.
+-- Admins: multiple per community (creator is first admin)
+CREATE TABLE IF NOT EXISTS community_admins (
+  community_id  TEXT NOT NULL,
+  admin_pubkey  TEXT NOT NULL,
+  created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (community_id, admin_pubkey),
+  FOREIGN KEY (community_id) REFERENCES communities(id)
+);
+CREATE INDEX IF NOT EXISTS idx_community_admins_community ON community_admins(community_id);
+
+INSERT OR IGNORE INTO community_admins (community_id, admin_pubkey)
+SELECT id, admin_pubkey FROM communities WHERE admin_pubkey != '0000000000000000000000000000000000000000000000000000000000000000';
+
+-- Applications: workers apply, admins approve before work begins
+CREATE TABLE IF NOT EXISTS applications (
+  id             TEXT PRIMARY KEY,
+  bounty_id      TEXT NOT NULL,
+  applicant_pubkey TEXT NOT NULL,
+  status         TEXT NOT NULL DEFAULT 'pending', -- pending | approved | rejected
+  created_at     INTEGER NOT NULL DEFAULT (unixepoch()),
+  FOREIGN KEY (bounty_id) REFERENCES bounties(id),
+  UNIQUE (bounty_id, applicant_pubkey)
+);
+CREATE INDEX IF NOT EXISTS idx_applications_bounty ON applications(bounty_id);
+CREATE INDEX IF NOT EXISTS idx_applications_status ON applications(status);
+
+-- Zaps: Lightning tips sent to bounty creators/workers
+CREATE TABLE IF NOT EXISTS zaps (
+  id            TEXT PRIMARY KEY,
+  bounty_id     TEXT NOT NULL,
+  sender_pubkey TEXT NOT NULL,
+  recipient_pubkey TEXT NOT NULL,
+  amount_sats   INTEGER NOT NULL,
+  memo          TEXT,
+  preimage      TEXT,
+  created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+  FOREIGN KEY (bounty_id) REFERENCES bounties(id)
+);
+CREATE INDEX IF NOT EXISTS idx_zaps_bounty ON zaps(bounty_id);
+CREATE INDEX IF NOT EXISTS idx_zaps_recipient ON zaps(recipient_pubkey);
+
+-- Media: shared music/podcast tracks (NIP-71 style badges)
+CREATE TABLE IF NOT EXISTS media (
+  id            TEXT PRIMARY KEY,
+  title         TEXT NOT NULL,
+  artist        TEXT,
+  url           TEXT NOT NULL,
+  cover_url     TEXT,
+  duration      INTEGER,
+  pubkey        TEXT NOT NULL,
+  created_at    INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_media_pubkey ON media(pubkey);
+
+-- Nostr notes: cross-posted notes from the app
+CREATE TABLE IF NOT EXISTS nostr_notes (
+  id            TEXT PRIMARY KEY,
+  pubkey        TEXT NOT NULL,
+  content       TEXT NOT NULL,
+  kind          INTEGER NOT NULL DEFAULT 1,
+  tags          TEXT,
+  sig           TEXT,
+  event_id      TEXT,
+  created_at    INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_nostr_notes_pubkey ON nostr_notes(pubkey);
+CREATE INDEX IF NOT EXISTS idx_nostr_notes_event ON nostr_notes(event_id);
 CREATE TABLE IF NOT EXISTS flags (
   id            TEXT PRIMARY KEY,
   bounty_id     TEXT NOT NULL,
