@@ -1298,10 +1298,12 @@ function renderSignIn() {
 }
 
 (async function boot() {
-  // Try stored dev key first, then real wallet
-  const storedPk = localStorage.getItem(LS_KEY);
-  if (storedPk) { ME = storedPk; MENAME = 'Dev User'; }
-  if (!ME) try { ME = await getPubkey(); MENAME = await getDisplayName(); } catch {}
+  // Try real wallet first; dev key is absolute last backup
+  try { ME = await getPubkey(); MENAME = await getDisplayName(); } catch {}
+  if (!ME) {
+    const storedPk = localStorage.getItem(LS_KEY);
+    if (storedPk) { ME = storedPk; MENAME = 'Dev User'; }
+  }
   if (!ME) { renderSignIn(); return; }
   resolveCommunity();
   if (!COMMUNITY && !localStorage.getItem('m2s_community') && !new URLSearchParams(location.search).has('community')) {

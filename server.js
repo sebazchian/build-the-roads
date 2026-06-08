@@ -57,7 +57,7 @@ async function serveStatic(res, urlPath, req) {
   let data;
   try { data = await readFile(file); } catch {
     if (isApiLike) return send(res, 404, { error: 'not found' });
-    if (!accept.includes('text/html')) return send(res, 404, { error: 'not found' });
+    // SPA fallback: always serve index.html for non-API routes so clean URLs work
     try { data = await readFile(join(PUBLIC_DIR, 'index.html')); }
     catch { return send(res, 404, { error: 'not found' }); }
   }
