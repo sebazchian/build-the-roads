@@ -55,13 +55,14 @@ async function serveStatic(res, urlPath, req) {
   const accept = req.headers.accept || '';
 
   let data;
-  try { data = await readFile(file); } catch {
+  let mime = 'application/octet-stream';
+  try { data = await readFile(file); mime = MIME[extname(rel)] || 'application/octet-stream'; } catch {
     if (isApiLike) return send(res, 404, { error: 'not found' });
     // SPA fallback: always serve index.html for non-API routes so clean URLs work
-    try { data = await readFile(join(PUBLIC_DIR, 'index.html')); }
+    try { data = await readFile(join(PUBLIC_DIR, 'index.html')); mime = 'text/html'; }
     catch { return send(res, 404, { error: 'not found' }); }
   }
-  res.writeHead(200, { 'Content-Type': MIME[extname(rel)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+  res.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'no-cache' });
   res.end(data);
 }
 
