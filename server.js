@@ -132,7 +132,7 @@ const server = createServer(async (req, res) => {
         return send(res, 403, { error: 'Only community admins can post jobs' });
       }
       db.ensureUser(b.creator_pubkey, b.display_name);
-      db.joinCommunity(cid, b.creator_pubkey, b.display_name);
+      try { db.joinCommunity(cid, b.creator_pubkey, b.display_name); } catch {}
       const bounty = db.createBounty({
         title: String(b.title).slice(0, 200),
         description: String(b.description).slice(0, 2000),
@@ -171,7 +171,7 @@ const server = createServer(async (req, res) => {
         }
       }
       db.ensureUser(body.pledger_pubkey, body.display_name);
-      db.joinCommunity(body.community_id || db.getBountyById(pledgeMatch[1])?.community_id, body.pledger_pubkey, body.display_name);
+      try { db.joinCommunity(body.community_id || db.getBountyById(pledgeMatch[1])?.community_id, body.pledger_pubkey, body.display_name); } catch {}
       const pledge = db.upsertPledge({
         bounty_id: pledgeMatch[1], pledger_pubkey: body.pledger_pubkey,
         amount_sats: amt,
@@ -190,7 +190,8 @@ const server = createServer(async (req, res) => {
       const body = await readJson(req);
       if (!isPubkey(body.applicant_pubkey)) return send(res, 400, { error: 'valid applicant_pubkey required' });
       db.ensureUser(body.applicant_pubkey, body.display_name);
-      db.joinCommunity(db.getBountyById(applyMatch[1])?.community_id, body.applicant_pubkey, body.display_name);
+      // Graceful: community may not exist (orphan bounty), don't block application
+      try { db.joinCommunity(db.getBountyById(applyMatch[1])?.community_id, body.applicant_pubkey, body.display_name); } catch {}
       try {
         const application = db.applyForBounty({ bounty_id: applyMatch[1], applicant_pubkey: body.applicant_pubkey });
         return send(res, 201, { application });
@@ -262,9 +263,22 @@ const server = createServer(async (req, res) => {
         }
       }
       db.ensureUser(body.worker_pubkey, body.display_name);
-      db.joinCommunity(b.community_id, body.worker_pubkey, body.display_name);
+      try { db.joinCommunity(b.community_id, body.worker_pubkey, body.display_name); } catch {}
       const bounty = db.claimBounty(claimMatch[1], body.worker_pubkey, body.admin_pubkey || null);
       return send(res, 200, { bounty });
+    }
+
+    // join  -  auto-register as member (community must exist)
+    const joinMatch = p.match(/^\/api\/communities\/([a-z0-9-]+)\/join$/);
+    if (joinMatch && req.method === 'POST') {
+      const body = await readJson(req);
+      if (!isPubkey(body.pubkey)) return send(res, 400, { error: 'pubkey required' });
+      db.ensureUser(body.pubkey, body.display_name);
+      // Only join if community exists
+      const community = db.getCommunity(joinMatch[1]);
+      if (!community) return send(res, 404, { error: 'Community not found' });
+      db.joinCommunity(joinMatch[1], body.pubkey, body.display_name);
+      return send(res, 200, { ok: true });
     }
 
     // proof  -  with image magic-number validation
@@ -426,16 +440,6 @@ const server = createServer(async (req, res) => {
 
     if (p === '/api/communities' && req.method === 'GET') {
       return send(res, 200, { communities: db.listCommunities() });
-    }
-
-    // Join a community (auto-register as member)
-    const joinMatch = p.match(/^\/api\/communities\/([a-z0-9-]+)\/join$/);
-    if (joinMatch && req.method === 'POST') {
-      const body = await readJson(req);
-      if (!isPubkey(body.pubkey)) return send(res, 400, { error: 'pubkey required' });
-      db.ensureUser(body.pubkey, body.display_name);
-      db.joinCommunity(joinMatch[1], body.pubkey, body.display_name);
-      return send(res, 200, { ok: true });
     }
 
     if (p === '/api/communities' && req.method === 'POST') {

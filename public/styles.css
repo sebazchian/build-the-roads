@@ -141,7 +141,8 @@ img{max-width:100%;display:block}
   color:var(--ink-dim);background:none;border:none;cursor:pointer;transition:.15s;white-space:nowrap
 }
 @media (max-width:400px){
-  .pill-tabs button{padding:7px 14px;font-size:14px}
+  .pill-tabs{gap:4px;padding:4px}
+  .pill-tabs button{padding:6px 12px;font-size:13px}
 }
 .pill-tabs button:hover{color:var(--ink)}
 .pill-tabs button.on{background:var(--bg-card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.2)}
