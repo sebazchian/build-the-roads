@@ -409,6 +409,16 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { trust: db.computeTrust(userMatch[1]), user: db.getUser(userMatch[1]) });
     }
 
+    // Update user's Lightning address ( self-reported from wallet )
+    const lnAddrMatch = p.match(/^\/api\/users\/([0-9a-f]{64})\/lightning-address$/);
+    if (lnAddrMatch && req.method === 'POST') {
+      const body = await readJson(req);
+      if (!isPubkey(lnAddrMatch[1])) return send(res, 400, { error: 'valid pubkey required' });
+      if (!body.lightning_address) return send(res, 400, { error: 'lightning_address required' });
+      db.updateUserLightningAddress(lnAddrMatch[1], body.lightning_address, body.lnurl || null);
+      return send(res, 200, { ok: true });
+    }
+
     if (p === '/api/leaderboards' && req.method === 'GET') {
       const cid = getCid();
       return send(res, 200, db.leaderboards(cid));

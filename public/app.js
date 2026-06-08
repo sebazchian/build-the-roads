@@ -25,39 +25,57 @@ const DIV = (cls, ...ch) => h('div', cls, ...ch);
 const BTN = (cls, txt, on) => { const b = h('button', cls, txt); if (on) b.onclick = on; return b; };
 
 /* ── Zap Component ─────────────────────────────────────────────────────── */
+async function resolveLightningAddress(pubkey) {
+  // 1. Check DB for stored address
+  const { user } = await api('/users/' + pubkey);
+  if (user?.lightning_address) return user.lightning_address;
+  if (user?.lnurl) return user.lnurl;
+
+  // 2. If it's ME, try to get from active wallet and save it
+  if (pubkey === ME) {
+    try {
+      const addr = await getLightningAddress();
+      if (addr) {
+        await api('/users/' + pubkey + '/lightning-address', { method: 'POST', body: { lightning_address: addr } });
+        return addr;
+      }
+    } catch (e) { /* wallet not available */ }
+  }
+
+  return null;
+}
+
 function zapButton(bounty, recipientPubkey, recipientType = 'creator') {
   const btn = BTN('btn btn-ghost btn-sm', '⚡ Zap', async () => {
     if (!ME) { toast('Sign in to zap', true); return; }
     if (!hasWebLN()) { toast('WebLN wallet required', true); return; }
-    
+
     const amount = prompt('Amount in sats:', '1000');
     if (!amount) return;
     const amt = parseInt(amount);
     if (!amt || amt < 1) { toast('Invalid amount', true); return; }
-    
+
     btn.disabled = true;
-    btn.textContent = '⚡ Sending...';
-    
+    btn.textContent = '⚡ Looking up address...';
+
     try {
-      // Get recipient's Lightning address
-      let lnaddr = null;
-      if (recipientType === 'creator') {
-        // Try to get from user's profile or bounty
-        lnaddr = bounty.creator_lnurl || null;
-      } else {
-        lnaddr = bounty.worker_invoice || null;
-      }
-      
+      const lnaddr = await resolveLightningAddress(recipientPubkey);
       if (!lnaddr) {
-        // Prompt for manual entry
-        lnaddr = prompt('Recipient Lightning address:', '');
-        if (!lnaddr) { toast('Lightning address required', true); btn.disabled = false; btn.textContent = '⚡ Zap'; return; }
+        if (recipientPubkey === ME) {
+          toast('Set your Lightning address in your Fedi profile first.', true);
+        } else {
+          toast('This user has not set a Lightning address yet.', true);
+        }
+        btn.disabled = false;
+        btn.textContent = '⚡ Zap';
+        return;
       }
-      
+
+      btn.textContent = '⚡ Sending...';
+
       const memo = `Zap for "${bounty.title}" on build the roads`;
       const preimage = await sendZap(lnaddr, amt, memo);
-      
-      // Record zap in DB
+
       await api('/zaps', {
         method: 'POST',
         body: {
@@ -70,7 +88,7 @@ function zapButton(bounty, recipientPubkey, recipientType = 'creator') {
           display_name: MENAME,
         }
       });
-      
+
       toast(`⚡ Zap sent! ${amt} sats`);
       btn.textContent = '⚡ Zapped';
       setTimeout(() => { btn.disabled = false; btn.textContent = '⚡ Zap'; }, 3000);
@@ -368,6 +386,7 @@ function makeTabs(active) {
   wrap.appendChild(mk('To-do', '/pending', active === 'pending'));
   wrap.appendChild(mk('🏆', '/leaderboard', active === 'leaderboard'));
   wrap.appendChild(mk('How?', '/how', active === 'how'));
+  wrap.appendChild(mk('Why?', '/philosophy', active === 'philosophy'));
   return wrap;
 }
 
@@ -602,6 +621,15 @@ async function renderDetail(id) {
       workerCard.appendChild(h('div', 'hint', '\u26A0\uFE0F ' + flagCount + ' flag' + (flagCount !== 1 ? 's' : '') + ' from pledgers'));
     }
     bodyStack.appendChild(workerCard);
+  }
+
+  // Zap button for completed jobs — goes to the worker, not creator
+  if (b.status === 'settled' && b.worker_pubkey) {
+    const zapCard = DIV('card card-action');
+    zapCard.appendChild(h('div', 'overline', '⚡ Tip the worker'));
+    zapCard.appendChild(hint('This job is done. Send a thank-you zap to the worker directly.'));
+    zapCard.appendChild(zapButton(b, b.worker_pubkey, 'worker'));
+    bodyStack.appendChild(zapCard);
   }
 
   // title block
@@ -1022,7 +1050,7 @@ function renderHow() {
   pledgerCard.appendChild(h('div', 'help-title', '🤝 For pledgers'));
   pledgerCard.appendChild(h('div', 'help-step', h('span', 'num', '1'), h('div', '', h('b', '', 'Find a need.'), ' See a job you want to support? Pledge some sats.')));
   pledgerCard.appendChild(h('div', 'help-step', h('span', 'num', '2'), h('div', '', h('b', '', 'Hold your money.'), ' Your sats stay in your wallet. No escrow, no custody.')));
-  pledgerCard.appendChild(h('div', 'help-step', h('span', 'num', '3'), h('div', '', h('b', '', 'Pay when it\'s done.'), ' After the worker submits proof, send the sats you promised. If you do not pay, the community remembers.')));
+  pledgerCard.appendChild(h('div', 'help-step', h('span', 'num', '3'), h('div', '', h('b', '', "Pay when it's done."), ' After the worker submits proof, send the sats you promised. If you do not pay, the community remembers.')));
   body.appendChild(pledgerCard);
 
   w.appendChild(body);

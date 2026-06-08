@@ -6,10 +6,11 @@ PRAGMA foreign_keys = ON;
 
 -- Users: keyed by Nostr pubkey. Created on first interaction.
 CREATE TABLE IF NOT EXISTS users (
-  pubkey        TEXT PRIMARY KEY,            -- hex Nostr pubkey
-  display_name  TEXT,                        -- from window.fedi / nostr profile, optional
+  pubkey        TEXT PRIMARY KEY,
+  display_name  TEXT,
+  lightning_address TEXT,   -- lud16 or lnurl from Fedi/WebLN
+  lnurl         TEXT,       -- raw LNURL if available
   created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
-  -- denormalized trust metrics (recomputed on settlement events)
   pledges_made_count       INTEGER NOT NULL DEFAULT 0,
   pledges_fulfilled_count  INTEGER NOT NULL DEFAULT 0,
   sats_pledged_total       INTEGER NOT NULL DEFAULT 0,
