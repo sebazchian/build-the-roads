@@ -294,6 +294,8 @@ async function route() {
   else if (h === '/all') renderHome(null);
   else if (h === '/new') renderNew();
   else if (h === '/leaderboard') renderLeaderboard();
+  else if (h === '/manage') renderManage();
+  else if (h === '/philosophy') renderPhilosophy();
   else if (h === '/pending') renderPending();
   else if (h.startsWith('/b/')) renderDetail(h.slice(3));
   else renderHome('open');
@@ -334,6 +336,10 @@ function renderHeader() {
   if (ME) {
     const pendingBtn = BTN('btn btn-ghost btn-sm' + (ACTION_COUNT > 0 ? ' action-alert' : ''), 'To-do', () => go('/pending'));
     actions.appendChild(pendingBtn);
+    if (IS_ADMIN) {
+      const manageBtn = BTN('btn btn-ghost btn-sm', 'Manage', () => go('/manage'));
+      actions.appendChild(manageBtn);
+    }
   }
   right.appendChild(actions);
 
