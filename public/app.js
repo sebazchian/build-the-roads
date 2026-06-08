@@ -641,8 +641,8 @@ async function renderDetail(id) {
     titleBlock.appendChild(h('span', 'trust trust-reliable', '\u2605 You are an admin'));
   }
   
-  // Zap button for creator
-  if (ME && b.creator_pubkey !== ME) {
+  // Zap button for creator (only on finished jobs)
+  if (ME && b.creator_pubkey !== ME && b.status === 'settled') {
     titleBlock.appendChild(zapButton(b, b.creator_pubkey, 'creator'));
   }
   
