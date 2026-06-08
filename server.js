@@ -418,6 +418,16 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { communities: db.listCommunities() });
     }
 
+    // Join a community (auto-register as member)
+    const joinMatch = p.match(/^\/api\/communities\/([a-z0-9-]+)\/join$/);
+    if (joinMatch && req.method === 'POST') {
+      const body = await readJson(req);
+      if (!isPubkey(body.pubkey)) return send(res, 400, { error: 'pubkey required' });
+      db.ensureUser(body.pubkey, body.display_name);
+      db.joinCommunity(joinMatch[1], body.pubkey, body.display_name);
+      return send(res, 200, { ok: true });
+    }
+
     if (p === '/api/communities' && req.method === 'POST') {
       const body = await readJson(req);
       if (!body.id || !body.name || !isPubkey(body.admin_pubkey)) {

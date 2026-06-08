@@ -420,6 +420,11 @@ async function renderHome(filter) {
   stack.appendChild(makeTabs(filter === 'open' ? 'open' : 'all'));
   wrap.appendChild(stack);
 
+  // Auto-register as community member on visit (silent, best-effort)
+  if (ME && COMMUNITY) {
+    api('/communities/' + COMMUNITY + '/join', { method: 'POST', body: { pubkey: ME, display_name: MENAME } }).catch(() => {});
+  }
+
   wrap.appendChild(howItWorks());
   
   let list;
