@@ -294,7 +294,7 @@ async function route() {
   else if (h === '/all') renderHome(null);
   else if (h === '/new') renderNew();
   else if (h === '/leaderboard') renderLeaderboard();
-  else if (h === '/manage') renderManage();
+  else if (h === '/manage') renderManagePage();
   else if (h === '/philosophy') renderPhilosophy();
   else if (h === '/pending') renderPending();
   else if (h.startsWith('/b/')) renderDetail(h.slice(3));
