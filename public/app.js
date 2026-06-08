@@ -181,61 +181,6 @@ function formatTime(seconds) {
   return mins + ':' + secs.toString().padStart(2, '0');
 }
 
-/* ── Nostr Post Component ──────────────────────────────────────────────── */
-function nostrPostComposer(onPost) {
-  const card = DIV('card');
-  card.appendChild(h('div', 'overline', 'Post to Nostr'));
-  
-  const textarea = h('textarea', '');
-  textarea.placeholder = "What's happening?";
-  textarea.style.minHeight = '80px';
-  card.appendChild(textarea);
-  
-  const actions = DIV('gap-1-row');
-  
-  const postBtn = BTN('btn', 'Post', async () => {
-    const content = textarea.value.trim();
-    if (!content) { toast('Enter some text', true); return; }
-    if (!ME) { toast('Sign in first', true); return; }
-    if (!hasNostr()) { toast('Nostr extension required', true); return; }
-    
-    postBtn.disabled = true;
-    postBtn.textContent = 'Posting...';
-    
-    try {
-      const signed = await publishNostrNote(content);
-      
-      // Save to local DB
-      await api('/nostr', {
-        method: 'POST',
-        body: {
-          pubkey: ME,
-          content,
-          kind: 1,
-          tags: signed.tags,
-          sig: signed.sig,
-          event_id: signed.id,
-          display_name: MENAME,
-        }
-      });
-      
-      toast('Posted to Nostr!');
-      textarea.value = '';
-      if (onPost) onPost(signed);
-    } catch (e) {
-      toast(e.message || 'Post failed', true);
-    } finally {
-      postBtn.disabled = false;
-      postBtn.textContent = 'Post';
-    }
-  });
-  
-  actions.appendChild(postBtn);
-  card.appendChild(actions);
-  
-  return card;
-}
-
 /* ── Helpers ── */
 const esc = s => String(s || '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const short = pk => pk ? pk.slice(0, 5) + '...' + pk.slice(-4) : ' - ';
@@ -470,11 +415,6 @@ async function renderHome(filter) {
   wrap.appendChild(stack);
 
   wrap.appendChild(howItWorks());
-  
-  // Nostr post composer
-  if (ME && hasNostr()) {
-    wrap.appendChild(nostrPostComposer());
-  }
   
   let list;
   try {
