@@ -1,4 +1,4 @@
-/* build the roads  -  clean, no-weird-links */
+/* build the roads */
 import { getPubkey, getDisplayName, signAction, makeInvoice, payInvoice, getLightningAddress, getLnurl, resolveInvoiceFromAddress, inFedi, hasWebLN, hasNostr, generateDevKey, copyToClipboard, postNote, LS_KEY } from './fedi.js';
 
 /* ── State ── */
@@ -99,104 +99,6 @@ function zapButton(bounty, recipientPubkey, recipientType = 'creator') {
     }
   });
   return btn;
-}
-
-/* ── Media Player Component ────────────────────────────────────────────── */
-let CURRENT_AUDIO = null;
-let CURRENT_TRACK = null;
-
-function mediaPlayer() {
-  const player = DIV('media-player');
-  player.id = 'media-player';
-  player.style.display = 'none';
-  
-  const info = DIV('media-info');
-  const title = h('span', 'media-title', 'No track');
-  const artist = h('span', 'media-artist', '');
-  info.appendChild(title);
-  info.appendChild(artist);
-  
-  const controls = DIV('media-controls');
-  const playBtn = BTN('btn btn-sm', '▶', () => togglePlay());
-  playBtn.id = 'media-play-btn';
-  const progress = h('input', '');
-  progress.type = 'range';
-  progress.min = 0;
-  progress.max = 100;
-  progress.value = 0;
-  progress.id = 'media-progress';
-  progress.style.flex = '1';
-  progress.style.margin = '0 8px';
-  
-  const time = h('span', 'media-time', '0:00 / 0:00');
-  time.id = 'media-time';
-  
-  controls.appendChild(playBtn);
-  controls.appendChild(progress);
-  controls.appendChild(time);
-  
-  const closeBtn = BTN('btn btn-ghost btn-sm', '✕', () => {
-    if (CURRENT_AUDIO) { CURRENT_AUDIO.pause(); CURRENT_AUDIO = null; }
-    player.style.display = 'none';
-  });
-  
-  player.appendChild(info);
-  player.appendChild(controls);
-  player.appendChild(closeBtn);
-  
-  return player;
-}
-
-function togglePlay() {
-  if (!CURRENT_AUDIO) return;
-  const btn = $('media-play-btn');
-  if (CURRENT_AUDIO.paused) {
-    CURRENT_AUDIO.play();
-    btn.textContent = '⏸';
-  } else {
-    CURRENT_AUDIO.pause();
-    btn.textContent = '▶';
-  }
-}
-
-function loadTrack(track) {
-  if (CURRENT_AUDIO) { CURRENT_AUDIO.pause(); CURRENT_AUDIO = null; }
-  
-  CURRENT_TRACK = track;
-  CURRENT_AUDIO = new Audio(track.url);
-  
-  const player = $('media-player');
-  const title = player.querySelector('.media-title');
-  const artist = player.querySelector('.media-artist');
-  title.textContent = track.title;
-  artist.textContent = track.artist || '';
-  
-  CURRENT_AUDIO.addEventListener('timeupdate', () => {
-    if (!CURRENT_AUDIO) return;
-    const progress = $('media-progress');
-    const time = $('media-time');
-    if (progress && CURRENT_AUDIO.duration) {
-      progress.value = (CURRENT_AUDIO.currentTime / CURRENT_AUDIO.duration) * 100;
-      time.textContent = formatTime(CURRENT_AUDIO.currentTime) + ' / ' + formatTime(CURRENT_AUDIO.duration);
-    }
-  });
-  
-  CURRENT_AUDIO.addEventListener('ended', () => {
-    const btn = $('media-play-btn');
-    if (btn) btn.textContent = '▶';
-  });
-  
-  player.style.display = 'flex';
-  CURRENT_AUDIO.play();
-  const btn = $('media-play-btn');
-  if (btn) btn.textContent = '⏸';
-}
-
-function formatTime(seconds) {
-  if (!seconds || isNaN(seconds)) return '0:00';
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return mins + ':' + secs.toString().padStart(2, '0');
 }
 
 /* ── Helpers ── */
@@ -420,10 +322,10 @@ function hint(text) {
 function howItWorks() {
   return DIV('card help',
     h('div', 'help-title', '🤝 How it works'),
-    h('div', 'help-step', h('span', 'num', '1'), h('div', '', h('b', '', 'Someone posts a need.'), '  -  Paint the hall. Fix the gate. Clean the lot.')),
-    h('div', 'help-step', h('span', 'num', '2'), h('div', '', h('b', '', 'Neighbors chip in sats.'), '  -  Pledge a small amount. If the work gets done, you pay.')),
-    h('div', 'help-step', h('span', 'num', '3'), h('div', '', h('b', '', 'A worker claims it.'), '  -  They do the job and send proof.')),
-    h('div', 'help-step', h('span', 'num', '4'), h('div', '', h('b', '', 'Pledgers pay up.'), '  -  Everyone who promised sends sats to the worker.')),
+    h('div', 'help-step', h('span', 'num', '1'), h('div', '', h('b', '', 'Someone posts a need.'), ' Paint the hall. Fix the gate. Clean the lot.')),
+    h('div', 'help-step', h('span', 'num', '2'), h('div', '', h('b', '', 'Neighbors chip in sats.'), ' Pledge a small amount. If the work gets done, you pay.')),
+    h('div', 'help-step', h('span', 'num', '3'), h('div', '', h('b', '', 'A worker claims it.'), ' They do the job and send proof.')),
+    h('div', 'help-step', h('span', 'num', '4'), h('div', '', h('b', '', 'Pledgers pay up.'), ' Everyone who promised sends sats to the worker.')),
     h('div', 'help-foot', 'No upfront escrow. You hold your own money until the work is done. If someone does not pay, the community remembers.')
   );
 }
@@ -453,9 +355,9 @@ async function renderHome(filter) {
     list = DIV('stack');
     if (!bounties.length) {
       if (filter === 'open') {
-        list.appendChild(emptyState('No open jobs.', 'Check the All tab to see claimed and completed jobs, or be the first to post a need.'));
+        list.appendChild(emptyState('All quiet.', 'Nothing open right now. Check All for finished jobs, or post the first need.'));
       } else {
-        list.appendChild(emptyState('Nothing here yet.', 'Be the first to post a need.'));
+        list.appendChild(emptyState('All quiet.', 'Post the first need and get it done.'));
       }
     } else {
       bounties.forEach(b => list.appendChild(bountyCard(b)));
@@ -468,16 +370,8 @@ async function renderHome(filter) {
   if (IS_ADMIN) {
     const fab = BTN('fab', '+ Post a need', () => go('/new'));
     wrap.appendChild(fab);
-  } else {
-    const notice = DIV('card');
-    notice.appendChild(h('div', 'hint', 'Only admins can post jobs in this community.'));
-    wrap.appendChild(notice);
   }
   
-  // Add media player if not exists
-  if (!$('media-player')) {
-    document.body.appendChild(mediaPlayer());
-  }
 }
 
 function bountyCard(b) {
@@ -518,7 +412,7 @@ function renderNew() {
 
   const stack = DIV('stack');
   stack.appendChild(makeTabs(null));
-  stack.appendChild(DIV('', h('h1', 't1', 'What needs doing?'), h('p', 'body', "Describe it like you're telling a neighbor.")));
+  stack.appendChild(DIV('', h('h1', 't1', 'What needs doing?'), h('p', 'body', 'Tell the street what needs doing.')));
   w.appendChild(stack);
 
   w.appendChild(howItWorks());
@@ -636,7 +530,7 @@ async function renderDetail(id) {
   const titleBlock = DIV('stack-sm padded');
   titleBlock.appendChild(h('span', 'tag ' + cat.cls, esc(cat.label)));
   titleBlock.appendChild(h('h1', 't2', esc(b.title)));
-  titleBlock.appendChild(h('div', 'hint', `Posted by ${esc(short(b.creator_pubkey))}${b.expires_at ? ' \u00b7 Due ' + fmtDate(b.expires_at) : ''}`));
+  titleBlock.appendChild(h('div', 'hint', `Posted by ${esc(short(b.creator_pubkey))}${b.expires_at ? ' \u00b7 open till ' + fmtDate(b.expires_at) : ''}`));
   if (IS_ADMIN) {
     titleBlock.appendChild(h('span', 'trust trust-reliable', '\u2605 You are an admin'));
   }
@@ -691,7 +585,7 @@ async function renderDetail(id) {
   if (b.status === 'open') {
     const pledgeCard = DIV('card');
     pledgeCard.appendChild(h('div', 'overline', 'Your pledge'));
-    pledgeCard.appendChild(hint('You are promising to pay if a worker does the job. Your sats stay in your wallet until then.'));
+    pledgeCard.appendChild(hint('Promise now, pay only when the work is done. Your sats never leave your wallet until then.'));
     const pAmt = h('input', ''); pAmt.type = 'number'; pAmt.placeholder = 'e.g. 5000'; if (myPledge) pAmt.value = myPledge.amount_sats; pAmt.style.marginBottom = '12px';
     pledgeCard.appendChild(pAmt);
 
@@ -832,7 +726,7 @@ async function renderDetail(id) {
     ));
   }
 
-  // Actions  -  claimed (worker proof)
+  // Actions: claimed (worker proof)
   if (b.status === 'claimed' && isWorker) {
     const pf = DIV('card');
     pf.appendChild(h('div', 'overline', 'Submit proof'));
@@ -904,7 +798,7 @@ async function renderDetail(id) {
     bodyStack.appendChild(pf);
   }
 
-  // Actions  -  proof submitted
+  // Actions: proof submitted
   // Retroactive: if proof_submitted but no worker_invoice, show form to add it
   if (b.status === 'proof_submitted' && !b.worker_invoice) {
     const fixPay = DIV('card');
@@ -947,12 +841,11 @@ async function renderDetail(id) {
         pay.appendChild(h('div', 'hint', deadlineText));
       }
 
-      pay.appendChild(h('div', 'b-desc', 'You pledged ' + fmtS(myPledge.amount_sats) + '. The work is done  -  honour your pledge.'));
+      pay.appendChild(h('div', 'b-desc', 'You pledged ' + fmtS(myPledge.amount_sats) + '. The work is done. Time to pay what you promised.'));
 
       if (b.worker_invoice) {
         const hasPreGenInvoice = myPledge.invoice_request;
         const invBox = DIV('invoice-box' + (hasPreGenInvoice ? ' invoice-box-ready' : ''));
-        console.log("Pay section: hasPreGenInvoice=", !!hasPreGenInvoice, "invoice_request=", hasPreGenInvoice ? hasPreGenInvoice.substring(0, 30) + "..." : "none");
         if (hasPreGenInvoice) {
           invBox.appendChild(h('div', 'hint', 'Use your Lightning wallet to pay this invoice:'));
           invBox.appendChild(h('div', 'invoice-text', esc(myPledge.invoice_request)));
@@ -1128,7 +1021,7 @@ async function renderLeaderboard() {
   const lead = DIV('stack');
   lead.appendChild(makeTabs('leaderboard'));
   lead.appendChild(h('h1', 't1', 'Community heroes'));
-  lead.appendChild(h('p', 'body', 'The people who show up  -  and the people who pay up.'));
+  lead.appendChild(h('p', 'body', 'The people who show up. The people who pay up.'));
   w.appendChild(lead);
 
   const bodyStack = DIV('stack');
@@ -1159,7 +1052,7 @@ function rankRow(pos, addr, right, gold) {
 }
 
 /* ================================================================
-   PENDING TAB  -  what needs action from me
+   PENDING TAB: what needs action from me
    ================================================================ */
 async function renderPending() {
   const w = $('app');
