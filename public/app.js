@@ -296,8 +296,12 @@ function backLink(href, text) {
   return BTN('btn btn-ghost btn-sm', '← ' + text, () => go(href));
 }
 
-function emptyState(title, body) {
-  return DIV('empty', h('b', '', title), body);
+function emptyState(title, body, art) {
+  const e = DIV('empty');
+  e.appendChild(DIV('empty-art', art || '🛠️'));
+  e.appendChild(h('b', '', title));
+  e.appendChild(body);
+  return e;
 }
 
 function trustBadge(t) {
@@ -355,9 +359,9 @@ async function renderHome(filter) {
     list = DIV('stack');
     if (!bounties.length) {
       if (filter === 'open') {
-        list.appendChild(emptyState('All quiet.', 'Nothing open right now. Check All for finished jobs, or post the first need.'));
+        list.appendChild(emptyState('All quiet.', 'Nothing open right now. Check All for finished jobs, or post the first need.', '🌤'));
       } else {
-        list.appendChild(emptyState('All quiet.', 'Post the first need and get it done.'));
+        list.appendChild(emptyState('All quiet.', 'Post the first need and get it done.', '🛠️'));
       }
     } else {
       bounties.forEach(b => list.appendChild(bountyCard(b)));
@@ -1031,14 +1035,14 @@ async function renderLeaderboard() {
     const lb = await api('/leaderboards');
 
     bodyStack.appendChild(h('div', 'overline', 'Hardest workers'));
-    if (!lb.topWorkers.length) bodyStack.appendChild(emptyState('No workers yet.', 'Claim a job and complete it to show up here.'));
+    if (!lb.topWorkers.length) bodyStack.appendChild(emptyState('No workers yet.', 'Claim a job and complete it to show up here.', '💪'));
     else lb.topWorkers.forEach((r, i) => {
       const completion = r.jobs > 0 ? Math.round((r.completed || 0) / r.jobs * 100) + '%' : '0%';
       bodyStack.appendChild(rankRow(i + 1, short(r.pubkey), `${r.completed || 0}/${r.jobs} done (${completion})`, i === 0));
     });
 
     bodyStack.appendChild(h('div', 'overline overline-pad', 'Most reliable pledgers'));
-    if (!lb.topReliable.length) bodyStack.appendChild(emptyState('No pledgers yet.', 'Make a pledge and honor it to show up here.'));
+    if (!lb.topReliable.length) bodyStack.appendChild(emptyState('No pledgers yet.', 'Make a pledge and honor it to show up here.', '🤝'));
     else lb.topReliable.forEach((r, i) => {
       const badge = r.reliability_pct >= 90 ? 'Reliable' : r.reliability_pct >= 60 ? 'Mixed' : 'Flaky';
       const right = `${r.reliability_pct ?? 0}% ${badge} · ${fmtS(r.paid_sats)} paid · ${fmtS(r.reneged_sats || 0)} reneged`;
@@ -1086,7 +1090,7 @@ async function renderPending() {
     // Jobs to prove
     bodyStack.appendChild(h('div', 'overline', 'Jobs you claimed'));
     if (!toClaim.length) {
-      bodyStack.appendChild(emptyState('Nothing to prove.', 'Jobs appear here after you claim them.'));
+      bodyStack.appendChild(emptyState('Nothing to prove.', 'Jobs appear here after you claim them.', '📸'));
     } else {
       toClaim.forEach(b => bodyStack.appendChild(pendingCard(b, 'claim')));
     }
@@ -1094,7 +1098,7 @@ async function renderPending() {
     // Payments to make
     bodyStack.appendChild(h('div', 'overline overline-pad', 'Payments you owe'));
     if (!toPay.length) {
-      bodyStack.appendChild(emptyState('Nothing to pay.', 'Pledges appear here after work is submitted.'));
+      bodyStack.appendChild(emptyState('Nothing to pay.', 'Pledges appear here after work is submitted.', '💸'));
     } else {
       toPay.forEach(p => {
         const card = DIV('card card-interactive');
@@ -1147,7 +1151,17 @@ async function renderPicker() {
   w.appendChild(bodyStack);
 
   if (!ALL_COMMUNITIES.length) {
-    bodyStack.appendChild(emptyState('No communities yet.', 'Be the first to start one.'));
+    const hero = DIV('hero');
+    hero.appendChild(h('div', 'hero-art', '🛠️'));
+    hero.appendChild(h('h2', 'hero-title', 'Every road starts somewhere.'));
+    hero.appendChild(h('p', 'hero-body', 'Name your community, post the first need, and let neighbors pledge what it is worth to them. You hold your own sats until the work is done.'));
+    bodyStack.appendChild(hero);
+    const startBtn = BTN('btn btn-lg', 'Start your community', () => {
+      const idBox = document.getElementById('community-id-input');
+      if (idBox) idBox.focus();
+      idBox?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    bodyStack.appendChild(startBtn);
   } else {
     ALL_COMMUNITIES.forEach(c => {
       const card = DIV('card card-interactive');
@@ -1161,7 +1175,7 @@ async function renderPicker() {
   const create = DIV('card');
   create.appendChild(h('div', 'overline', 'Start a new community'));
 
-  const cId = h('input', ''); cId.placeholder = 'URL-friendly ID, e.g. bitcoin-ekasi';
+  const cId = h('input', ''); cId.id = 'community-id-input'; cId.placeholder = 'URL-friendly ID, e.g. bitcoin-ekasi';
   create.appendChild(h('label', 'field-label', 'ID')); create.appendChild(cId);
 
   const cName = h('input', ''); cName.placeholder = 'Mytown Bitcoin Crew';
