@@ -1,6 +1,6 @@
 # build the roads
 
-A community bounty board funded in sats  -  a **Fedi mini app**. Neighbors pledge sats toward shared needs (trash cleanup, painting, repairs); a worker provably claims and completes the task; pledgers pay out via Lightning; and a **trust score** tracks who actually pays. It solves the free-rider problem for hyper-local public goods.
+A community bounty board funded in sats — a **Fedi mini app**. Neighbors pledge sats toward shared needs (trash cleanup, painting, repairs); a worker provably claims and completes the task; pledgers pay out via Lightning; and a **trust score** tracks who actually pays. It solves the free-rider problem for hyper-local public goods.
 
 > Small pledges. Real work. Nobody forced.
 
